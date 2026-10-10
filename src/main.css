@@ -1,0 +1,126 @@
+/* Global styles - Theme, font, utilities, animations and global components */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Rachide Bar Warm Dark Theme as default */
+    --background: 24 10% 10%; /* #1C1917 */
+    --foreground: 60 9% 96%; /* #F5F5F4 */
+
+    --card: 24 9% 15%; /* #292524 */
+    --card-foreground: 60 9% 96%; /* #F5F5F4 */
+
+    --popover: 24 9% 15%; /* #292524 */
+    --popover-foreground: 60 9% 96%; /* #F5F5F4 */
+
+    --primary: 38 92% 50%; /* #F59E0B Amber */
+    --primary-foreground: 24 10% 10%; /* #1C1917 */
+
+    --secondary: 25 5% 25%; /* #44403C Surface elevated */
+    --secondary-foreground: 60 9% 96%; /* #F5F5F4 */
+
+    --muted: 24 6% 20%;
+    --muted-foreground: 24 5% 65%; /* #A8A29E Sand */
+
+    --accent: 25 5% 25%;
+    --accent-foreground: 60 9% 96%;
+
+    --destructive: 0 84% 60%; /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 25 5% 25%; /* #44403C */
+    --input: 25 5% 25%; /* #44403C */
+    --ring: 38 92% 50%; /* #F59E0B */
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 24 9% 15%; /* #292524 */
+    --sidebar-foreground: 60 9% 96%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 24 10% 10%;
+    --sidebar-accent: 25 5% 25%;
+    --sidebar-accent-foreground: 60 9% 96%;
+    --sidebar-border: 25 5% 22%;
+    --sidebar-ring: 38 92% 50%;
+
+    --chart-1: 38 92% 50%; /* Amber */
+    --chart-2: 160 84% 39%; /* Emerald */
+    --chart-3: 173 80% 40%; /* Teal */
+    --chart-4: 217 91% 60%; /* Blue */
+    --chart-5: 0 84% 60%; /* Red */
+  }
+
+  body {
+    background-color: #1c1917;
+    color: #f5f5f4;
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      sans-serif;
+    letter-spacing: -0.01em;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Tabular numbers for all prices and quantities */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1c1917;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #44403c;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #78716c;
+  }
+
+  /* NEVER REMOVE THIS */
+  section[aria-label='Notifications alt+T'] {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+@layer utilities {
+  @keyframes fade-in-up {
+    from {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse-subtle {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+}
