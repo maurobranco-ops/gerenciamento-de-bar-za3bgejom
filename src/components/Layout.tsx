@@ -449,7 +449,7 @@ export default function Layout() {
                   variant="outline"
                   className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
                 >
-                  v1.3.0
+                  v1.4.0
                 </Badge>
               </div>
             ) : (
@@ -565,7 +565,8 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Rachide Bar v1.3.0 — Gestão Gastronômica, KDS Térmico, Fotos & Gestão de Usuários
+            Rachide Bar v1.4.0 — Gestão Gastronômica, KDS Térmico, Acompanhamento ao Vivo & Pedidos
+            On-line
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

@@ -829,6 +829,11 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ),
     )
 
+    // Bip sonoro interno agradável ao marcar pedido como pronto
+    if (status === 'pronto' && soundEnabled) {
+      SoundEffects.playSuccessAlert()
+    }
+
     try {
       await BarService.updateFilaStatus(id, status)
       const label =

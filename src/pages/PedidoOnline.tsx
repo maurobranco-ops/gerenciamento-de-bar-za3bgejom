@@ -33,6 +33,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { QRCodeSVG } from '@/components/QRCodeSVG'
 import { useToast } from '@/hooks/use-toast'
+import {
+  StatusAcompanhamentoPedido,
+  TrackedOrderItem,
+} from '@/components/StatusAcompanhamentoPedido'
+import { SoundEffects } from '@/lib/soundEffects'
 
 interface CartItem {
   product: MenuItem
@@ -82,6 +87,28 @@ export default function PedidoOnline() {
   const [pixStatus, setPixStatus] = useState<'pending' | 'checking' | 'paid'>('pending')
 
   const [deliveryFee, setDeliveryFee] = useState<number>(7.5)
+
+  // Acompanhamento do status do pedido em tempo real
+  const [trackedItems, setTrackedItems] = useState<TrackedOrderItem[]>([])
+  const [activeComandaId, setActiveComandaId] = useState<string>(() => {
+    return localStorage.getItem(`rachide_active_cmd_mesa_${mesaParam || 0}`) || ''
+  })
+  const [trackingLoading, setTrackingLoading] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('rachide_bar_client_sound')
+    return saved !== null ? saved === 'true' : true
+  })
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev
+      localStorage.setItem('rachide_bar_client_sound', String(next))
+      if (next) {
+        SoundEffects.playSuccessAlert()
+      }
+      return next
+    })
+  }
 
   // Ícone e estilo de placeholder por categoria para itens sem foto
   const renderCategoryPlaceholder = (category: string) => {
@@ -203,6 +230,110 @@ export default function PedidoOnline() {
     fetchMenu()
   }, [])
 
+  // Buscar status ao vivo da fila da mesa/comanda
+  const fetchOrderStatus = React.useCallback(
+    async (silent = false) => {
+      if (mesaNum <= 0 && !activeComandaId) return
+
+      if (!silent) setTrackingLoading(true)
+      try {
+        const { data, error } = await (supabase.rpc as any)('obter_status_pedido_mesa', {
+          p_mesa_numero: mesaNum > 0 ? mesaNum : null,
+          p_comanda_id: activeComandaId || null,
+        })
+
+        if (!error && data) {
+          const mapped: TrackedOrderItem[] = data.map((row: any) => ({
+            fila_id: row.fila_id,
+            comanda_item_id: row.comanda_item_id,
+            comanda_id: row.comanda_id,
+            mesa_numero: row.mesa_numero,
+            produto_id: row.produto_id,
+            nome_produto: row.nome_produto,
+            categoria: row.categoria,
+            image_url: row.image_url,
+            quantidade: Number(row.quantidade || 1),
+            observacoes: row.observacoes,
+            area_preparo: row.area_preparo,
+            status: row.status,
+            origem_online: Boolean(row.origem_online),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+          }))
+
+          setTrackedItems((prev) => {
+            // Detectar se algum item acabou de virar "pronto" para disparar bip sonoro
+            if (prev.length > 0) {
+              const prevReadyIds = new Set(
+                prev.filter((p) => p.status === 'pronto').map((p) => p.fila_id),
+              )
+              const newlyReady = mapped.some(
+                (curr) => curr.status === 'pronto' && !prevReadyIds.has(curr.fila_id),
+              )
+
+              if (newlyReady) {
+                const soundSaved = localStorage.getItem('rachide_bar_client_sound')
+                const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true
+                if (isSoundOn) {
+                  SoundEffects.playOrderAlert()
+                }
+                toast({
+                  title: '🔔 Pedido Pronto!',
+                  description:
+                    'Um ou mais itens do seu pedido estão prontos — o garçom está levando à sua mesa!',
+                })
+              }
+            }
+
+            return mapped
+          })
+        }
+      } catch (err) {
+        console.warn('Erro ao atualizar status do pedido da mesa:', err)
+      } finally {
+        if (!silent) setTrackingLoading(false)
+      }
+    },
+    [mesaNum, activeComandaId, toast],
+  )
+
+  // Carga inicial do status da mesa
+  useEffect(() => {
+    fetchOrderStatus()
+  }, [fetchOrderStatus])
+
+  // Supabase Realtime Subscription + Polling de fallback (4s)
+  useEffect(() => {
+    if (mesaNum <= 0 && !activeComandaId) return
+
+    // 1. Canal Realtime Supabase ouvindo mudanças em fila_cozinha
+    const channel = supabase
+      .channel(`pedido-tracking-mesa-${mesaNum || 'delivery'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'fila_cozinha',
+        },
+        () => {
+          // Atualiza na hora que qualquer status da cozinha mudar
+          fetchOrderStatus(true)
+        },
+      )
+      .subscribe()
+
+    // 2. Polling curto de segurança (4s) para garantir sincronia mesmo se realtime oscilar
+    const interval = setInterval(() => {
+      fetchOrderStatus(true)
+    }, 4000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
+  }, [mesaNum, activeComandaId, fetchOrderStatus])
+
   // Categorias únicas
   const categories = ['Todas', ...Array.from(new Set(products.map((p) => p.category)))]
 
@@ -295,13 +426,23 @@ export default function PedidoOnline() {
 
       const res = data as any
       const totalCalculado = cartTotal
+      const targetComandaId = res?.comanda_id || `cmd-${mesaNum > 0 ? mesaNum : 10}`
+
+      setActiveComandaId(targetComandaId)
+      localStorage.setItem(`rachide_active_cmd_mesa_${mesaNum || 0}`, targetComandaId)
+
       setOrderSuccess({
-        comandaId: res?.comanda_id || `cmd-${mesaNum}`,
+        comandaId: targetComandaId,
         mesaNumero: mesaNum > 0 ? mesaNum : 10,
         total: totalCalculado,
       })
       setCart([])
       setCartOpen(false)
+
+      // Atualiza imediatamente o acompanhamento ao vivo do pedido
+      setTimeout(() => {
+        fetchOrderStatus(true)
+      }, 300)
 
       toast({
         title: 'Pedido enviado com sucesso!',
@@ -414,8 +555,27 @@ export default function PedidoOnline() {
           </div>
         </div>
 
+        {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO */}
+        {trackedItems.length > 0 && (
+          <StatusAcompanhamentoPedido
+            items={trackedItems}
+            mesaNumero={mesaNum}
+            comandaId={activeComandaId}
+            loading={trackingLoading}
+            onRefresh={() => fetchOrderStatus(false)}
+            soundEnabled={soundEnabled}
+            onToggleSound={toggleSound}
+            onAddMoreItems={() => {
+              const menuSection = document.getElementById('secao-cardapio')
+              if (menuSection) {
+                menuSection.scrollIntoView({ behavior: 'smooth' })
+              }
+            }}
+          />
+        )}
+
         {/* Busca e Categorias */}
-        <div className="space-y-3">
+        <div id="secao-cardapio" className="space-y-3 pt-1">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
             <Input
@@ -828,19 +988,32 @@ export default function PedidoOnline() {
           <div className="space-y-2 pt-2">
             <Button
               onClick={() => {
+                setOrderSuccess(null)
+                // Rola suave até a seção de acompanhamento no topo
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-10 flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Acompanhar Preparo ao Vivo
+            </Button>
+
+            <Button
+              onClick={() => {
                 setPixStatus('pending')
                 setPixModalOpen(true)
               }}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-stone-950 font-black text-xs h-10 flex items-center justify-center gap-2"
+              variant="outline"
+              className="w-full bg-emerald-500/10 border-emerald-500/40 hover:bg-emerald-500 hover:text-stone-950 text-emerald-400 font-black text-xs h-10 flex items-center justify-center gap-2"
             >
               <QrCode className="w-4 h-4" />
               Pagar agora via Pix (Simulado)
             </Button>
 
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setOrderSuccess(null)}
-              className="w-full bg-[#1C1917] border-[#44403C] text-stone-300 hover:text-white text-xs"
+              className="w-full text-stone-400 hover:text-stone-200 text-xs"
             >
               Continuar pedindo no cardápio
             </Button>
