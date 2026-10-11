@@ -17,6 +17,11 @@ import {
   AlertCircle,
   X,
   Search,
+  Wine,
+  GlassWater,
+  Flame,
+  ChefHat,
+  Utensils,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { MenuItem, ProductCategory } from '@/types/bar'
@@ -77,6 +82,75 @@ export default function PedidoOnline() {
   const [pixStatus, setPixStatus] = useState<'pending' | 'checking' | 'paid'>('pending')
 
   const [deliveryFee, setDeliveryFee] = useState<number>(7.5)
+
+  // Ícone e estilo de placeholder por categoria para itens sem foto
+  const renderCategoryPlaceholder = (category: string) => {
+    switch (category) {
+      case 'Cervejas':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-amber-950/40 via-stone-900 to-amber-900/20 flex flex-col items-center justify-center text-amber-500/70 border-b border-[#44403C]/40">
+            <Beer className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest mt-1.5">
+              Cerveja Gelada
+            </span>
+          </div>
+        )
+      case 'Drinks':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-purple-950/40 via-stone-900 to-pink-900/20 flex flex-col items-center justify-center text-purple-400/70 border-b border-[#44403C]/40">
+            <Wine className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-purple-300/60 uppercase tracking-widest mt-1.5">
+              Coquetelaria
+            </span>
+          </div>
+        )
+      case 'Destilados':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-amber-950/50 via-stone-900 to-stone-900 flex flex-col items-center justify-center text-amber-600/70 border-b border-[#44403C]/40">
+            <Wine className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-amber-500/60 uppercase tracking-widest mt-1.5">
+              Destilados
+            </span>
+          </div>
+        )
+      case 'Petiscos':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-orange-950/40 via-stone-900 to-amber-950/30 flex flex-col items-center justify-center text-orange-500/70 border-b border-[#44403C]/40">
+            <Utensils className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-orange-400/60 uppercase tracking-widest mt-1.5">
+              Petisco da Casa
+            </span>
+          </div>
+        )
+      case 'Porções':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-red-950/40 via-stone-900 to-orange-950/30 flex flex-col items-center justify-center text-red-500/70 border-b border-[#44403C]/40">
+            <Flame className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-red-400/60 uppercase tracking-widest mt-1.5">
+              Porção Quente
+            </span>
+          </div>
+        )
+      case 'Refrigerantes':
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-blue-950/40 via-stone-900 to-cyan-950/30 flex flex-col items-center justify-center text-blue-400/70 border-b border-[#44403C]/40">
+            <GlassWater className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-blue-300/60 uppercase tracking-widest mt-1.5">
+              Sem Álcool
+            </span>
+          </div>
+        )
+      default:
+        return (
+          <div className="w-full h-full bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 flex flex-col items-center justify-center text-stone-500 border-b border-[#44403C]/40">
+            <UtensilsCrossed className="w-10 h-10 stroke-[1.5]" />
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1.5">
+              Rachide Bar
+            </span>
+          </div>
+        )
+    }
+  }
 
   // Carrega cardápio público ativo do banco e taxa de entrega das configurações
   useEffect(() => {
@@ -395,38 +469,62 @@ export default function PedidoOnline() {
               <div
                 key={prod.id}
                 onClick={() => handleOpenItem(prod)}
-                className="p-4 rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group"
+                className="rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group overflow-hidden"
               >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors">
-                      {prod.name}
-                    </h3>
+                {/* Imagem do Produto ou Placeholder Elegante */}
+                <div className="w-full h-36 relative bg-stone-900 overflow-hidden">
+                  {prod.imageUrl ? (
+                    <img
+                      src={prod.imageUrl}
+                      alt={prod.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    renderCategoryPlaceholder(prod.category)
+                  )}
+
+                  {/* Categoria Badge sobre a foto */}
+                  <div className="absolute top-2.5 right-2.5">
                     <Badge
                       variant="outline"
-                      className="bg-[#1C1917] text-stone-300 border-stone-700 text-[10px] whitespace-nowrap"
+                      className="bg-[#1C1917]/85 backdrop-blur-sm text-stone-200 border-[#44403C] text-[10px] font-bold shadow-sm"
                     >
                       {prod.category}
                     </Badge>
                   </div>
-                  {prod.description && (
-                    <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                      {prod.description}
-                    </p>
-                  )}
                 </div>
 
-                <div className="flex items-center justify-between pt-3 mt-2 border-t border-[#44403C]/50">
-                  <div className="text-amber-400 font-extrabold text-base tabular-nums">
-                    R$ {prod.price.toFixed(2)}
+                {/* Conteúdo do Card */}
+                <div className="p-4 flex flex-col flex-1 justify-between">
+                  <div>
+                    <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors leading-snug">
+                      {prod.name}
+                    </h3>
+                    {prod.description && (
+                      <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
+                        {prod.description}
+                      </p>
+                    )}
                   </div>
-                  <Button
-                    size="sm"
-                    className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" />
-                    Adicionar
-                  </Button>
+
+                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#44403C]/50">
+                    <div>
+                      <span className="text-[10px] text-stone-400 uppercase font-semibold block">
+                        Preço
+                      </span>
+                      <div className="text-amber-400 font-extrabold text-base tabular-nums">
+                        R$ {prod.price.toFixed(2)}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Pedir
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -457,9 +555,27 @@ export default function PedidoOnline() {
         <DialogContent className="max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-6">
           {editingItem && (
             <div className="space-y-4">
+              {/* Foto ou Placeholder no topo do modal */}
+              <div className="w-full h-40 rounded-xl overflow-hidden bg-stone-900 border border-[#44403C] relative">
+                {editingItem.product.imageUrl ? (
+                  <img
+                    src={editingItem.product.imageUrl}
+                    alt={editingItem.product.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  renderCategoryPlaceholder(editingItem.product.category)
+                )}
+                <div className="absolute top-2.5 right-2.5">
+                  <Badge className="bg-amber-500 text-stone-950 font-bold text-[10px]">
+                    {editingItem.product.category}
+                  </Badge>
+                </div>
+              </div>
+
               <DialogHeader>
-                <DialogTitle className="text-base font-black text-stone-100 flex items-start justify-between">
-                  <span>{editingItem.product.name}</span>
+                <DialogTitle className="text-base font-black text-stone-100">
+                  {editingItem.product.name}
                 </DialogTitle>
                 <div className="text-amber-400 font-black text-lg tabular-nums">
                   R$ {editingItem.product.price.toFixed(2)}
@@ -467,7 +583,7 @@ export default function PedidoOnline() {
               </DialogHeader>
 
               {editingItem.product.description && (
-                <p className="text-xs text-stone-300 leading-relaxed">
+                <p className="text-xs text-stone-300 leading-relaxed -mt-1">
                   {editingItem.product.description}
                 </p>
               )}

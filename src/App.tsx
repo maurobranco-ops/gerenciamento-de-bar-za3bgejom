@@ -20,6 +20,7 @@ import MesasConfig from './pages/MesasConfig'
 import PedidoOnline from './pages/PedidoOnline'
 import PedidosOnlineManager from './pages/PedidosOnlineManager'
 import Configuracoes from './pages/Configuracoes'
+import Usuarios from './pages/Usuarios'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 
@@ -49,6 +50,7 @@ export function App() {
                   <Route path="fila-cozinha" element={<FilaCozinha />} />
                   <Route path="produtos-admin" element={<ProdutosAdmin />} />
                   <Route path="mesas-config" element={<MesasConfig />} />
+                  <Route path="usuarios" element={<Usuarios />} />
                   <Route path="configuracoes" element={<Configuracoes />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>

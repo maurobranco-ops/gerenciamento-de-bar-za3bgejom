@@ -18,6 +18,11 @@ import {
   Check,
   X,
   AlertTriangle,
+  Camera,
+  UploadCloud,
+  Image as ImageIcon,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { MenuItem, ProductCategory, StockUnit, AreaPreparo } from '../types/bar'
@@ -28,6 +33,8 @@ import { Switch } from '../components/ui/switch'
 import { Label } from '../components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { SaveProductPayload } from '../services/barService'
+import { compressImage, uploadProductImage, deleteProductImageByUrl } from '../lib/imageCompression'
+import { useToast } from '../hooks/use-toast'
 
 const CATEGORIES: ProductCategory[] = [
   'Cervejas',
@@ -42,6 +49,7 @@ const UNITS: StockUnit[] = ['un', 'kg', 'L', 'g', 'ml']
 
 export default function ProdutosAdmin() {
   const { allProducts, createProduct, updateProduct, toggleProductStatus, role } = useBar()
+  const { toast } = useToast()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'Todos'>('Todos')
@@ -61,6 +69,11 @@ export default function ProdutosAdmin() {
   const [formEstoqueMinimo, setFormEstoqueMinimo] = useState('5')
   const [formAreaPreparo, setFormAreaPreparo] = useState<AreaPreparo>('bar')
   const [formAtivo, setFormAtivo] = useState(true)
+  const [formImageUrl, setFormImageUrl] = useState<string>('')
+  const [selectedFileToUpload, setSelectedFileToUpload] = useState<Blob | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('')
+  const [imageCompressedSizeKb, setImageCompressedSizeKb] = useState<number | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Abrir modal de criação
@@ -75,6 +88,10 @@ export default function ProdutosAdmin() {
     setFormEstoqueMinimo('5')
     setFormAreaPreparo('bar')
     setFormAtivo(true)
+    setFormImageUrl('')
+    setSelectedFileToUpload(null)
+    setImagePreviewUrl('')
+    setImageCompressedSizeKb(null)
     setModalOpen(true)
   }
 
@@ -95,7 +112,53 @@ export default function ProdutosAdmin() {
           : 'cozinha'),
     )
     setFormAtivo(prod.ativo !== false)
+    setFormImageUrl(prod.imageUrl || '')
+    setSelectedFileToUpload(null)
+    setImagePreviewUrl(prod.imageUrl || '')
+    setImageCompressedSizeKb(null)
     setModalOpen(true)
+  }
+
+  // Handler de seleção e compressão de foto no cliente
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      setIsUploadingImage(true)
+      const compressed = await compressImage(file, {
+        maxWidth: 800,
+        maxHeight: 800,
+        quality: 0.82,
+        mimeType: 'image/jpeg',
+      })
+
+      const sizeKb = Math.round(compressed.blob.size / 1024)
+      setSelectedFileToUpload(compressed.blob)
+      setImagePreviewUrl(compressed.dataUrl)
+      setImageCompressedSizeKb(sizeKb)
+
+      toast({
+        title: 'Foto comprimida com sucesso!',
+        description: `Tamanho otimizado para ${sizeKb} KB (~máx 800px). Pronta para salvar.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao processar foto',
+        description: err.message || 'Selecione uma imagem válida (PNG, JPG, WebP).',
+      })
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  // Remover foto atual
+  const handleRemovePhoto = () => {
+    setSelectedFileToUpload(null)
+    setImagePreviewUrl('')
+    setFormImageUrl('')
+    setImageCompressedSizeKb(null)
   }
 
   // Submissão do formulário
@@ -105,6 +168,34 @@ export default function ProdutosAdmin() {
 
     setIsSubmitting(true)
     try {
+      const targetId = editingProduct?.id || `prod-${Date.now()}`
+      let finalImageUrl = formImageUrl
+
+      // Se há um arquivo novo para upload comprimido
+      if (selectedFileToUpload) {
+        setIsUploadingImage(true)
+        try {
+          finalImageUrl = await uploadProductImage(selectedFileToUpload, targetId)
+          // Se havia imagem anterior diferente, limpa opcionalmente
+          if (editingProduct?.imageUrl && editingProduct.imageUrl !== finalImageUrl) {
+            deleteProductImageByUrl(editingProduct.imageUrl).catch(() => {})
+          }
+        } catch (uploadErr: any) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro no envio da foto',
+            description: uploadErr.message || 'Não foi possível gravar a foto no Storage.',
+          })
+          setIsSubmitting(false)
+          setIsUploadingImage(false)
+          return
+        }
+      } else if (!imagePreviewUrl && editingProduct?.imageUrl) {
+        // Usuário removeu a foto existente
+        deleteProductImageByUrl(editingProduct.imageUrl).catch(() => {})
+        finalImageUrl = ''
+      }
+
       const payload: SaveProductPayload = {
         nome: formNome.trim(),
         categoria: formCategoria,
@@ -118,6 +209,7 @@ export default function ProdutosAdmin() {
         ),
         area_preparo: formAreaPreparo,
         ativo: formAtivo,
+        image_url: finalImageUrl || undefined,
       }
 
       let success = false
@@ -379,9 +471,19 @@ export default function ProdutosAdmin() {
                       {/* Produto & Categoria */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-[#1C1917] border border-[#44403C]">
-                            {getCategoryIcon(prod.category)}
-                          </div>
+                          {prod.imageUrl ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-stone-900 border border-amber-500/40 flex-shrink-0 relative">
+                              <img
+                                src={prod.imageUrl}
+                                alt={prod.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-[#1C1917] border border-[#44403C] flex items-center justify-center flex-shrink-0">
+                              {getCategoryIcon(prod.category)}
+                            </div>
+                          )}
                           <div>
                             <div className="font-bold text-sm text-stone-100 flex items-center gap-2">
                               {prod.name}
@@ -392,6 +494,11 @@ export default function ProdutosAdmin() {
                                 >
                                   Inativo
                                 </Badge>
+                              )}
+                              {prod.imageUrl && (
+                                <span title="Possui foto para o cardápio on-line">
+                                  <Camera className="w-3 h-3 text-amber-400" />
+                                </span>
                               )}
                             </div>
                             <span className="text-[11px] text-stone-400">{prod.category}</span>
@@ -503,6 +610,97 @@ export default function ProdutosAdmin() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-2 text-xs">
+            {/* Foto do Produto (Upload com Compressão) */}
+            <div className="p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-stone-200 font-bold flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-amber-500" />
+                    Foto do Produto (Apenas no Cardápio On-line)
+                  </Label>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    Comprimida no navegador (~50KB, máx. 800px) e exibida exclusivamente no QR Code
+                    das mesas.
+                  </p>
+                </div>
+                {imageCompressedSizeKb !== null && (
+                  <Badge
+                    variant="outline"
+                    className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]"
+                  >
+                    {imageCompressedSizeKb} KB
+                  </Badge>
+                )}
+              </div>
+
+              {imagePreviewUrl ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-[#292524] border border-[#44403C]">
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-stone-900 border border-stone-700 flex-shrink-0 relative">
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Preview do produto"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-stone-200 truncate">
+                      {selectedFileToUpload ? 'Nova foto selecionada' : 'Foto atual salva'}
+                    </div>
+                    <p className="text-[10px] text-stone-400 mt-0.5">
+                      {selectedFileToUpload
+                        ? 'Será enviada e vinculada ao salvar.'
+                        : 'Exibida no cardápio público dos clientes.'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <label className="cursor-pointer text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        Substituir Foto
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="text-[11px] text-red-400 hover:text-red-300 font-semibold flex items-center gap-1 ml-2"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remover Foto
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <label className="border-2 border-dashed border-[#44403C] hover:border-amber-500/60 transition-colors rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer bg-[#292524]/50 group">
+                  <div className="p-2 rounded-full bg-[#1C1917] group-hover:bg-amber-500/20 text-stone-400 group-hover:text-amber-400 transition-colors">
+                    {isUploadingImage ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                    ) : (
+                      <UploadCloud className="w-5 h-5" />
+                    )}
+                  </div>
+                  <span className="text-xs font-semibold text-stone-300 mt-2">
+                    {isUploadingImage
+                      ? 'Comprimindo foto...'
+                      : 'Clique para selecionar foto do dispositivo'}
+                  </span>
+                  <span className="text-[10px] text-stone-500 mt-0.5">
+                    PNG, JPG, WebP (auto-redimensionada e comprimida para ~50 KB)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={isUploadingImage}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+
             {/* Nome */}
             <div>
               <Label className="text-stone-300 font-semibold mb-1 block">Nome do Produto *</Label>
