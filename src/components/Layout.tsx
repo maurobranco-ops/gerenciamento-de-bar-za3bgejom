@@ -22,6 +22,7 @@ import {
   PackagePlus,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
+import { useAuth } from '../hooks/use-auth'
 import { UserRole } from '../types/bar'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -35,6 +36,7 @@ import {
 } from './ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Badge } from './ui/badge'
+import { QrCode, LogOut } from 'lucide-react'
 
 interface NavItem {
   title: string
@@ -65,6 +67,12 @@ const NAV_ITEMS: NavItem[] = [
     badgeCount: (ctx) =>
       ctx.filaCozinha?.filter((i: any) => i.status === 'pendente' || i.status === 'preparando')
         .length || 0,
+  },
+  {
+    title: 'QR Code Mesas',
+    path: '/pedidos-online',
+    icon: QrCode,
+    roles: ['Garçom', 'Caixa', 'Gerente'],
   },
   {
     title: 'Cadastros de Produtos',
@@ -112,6 +120,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function Layout() {
   const barContext = useBar()
+  const { user, profile, signOut } = useAuth()
   const { role, setRole, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } =
     barContext
   const [collapsed, setCollapsed] = useState(false)
@@ -283,7 +292,7 @@ export default function Layout() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* User Profile Selector (Simulated Switch) */}
+          {/* User Profile & Logout */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -295,24 +304,32 @@ export default function Layout() {
                   {role[0]}
                 </div>
                 <div className="text-left hidden sm:block">
-                  <div className="font-semibold leading-none">{role}</div>
-                  <div className="text-[10px] text-stone-400">Trocar perfil</div>
+                  <div className="font-semibold leading-none">{profile?.nome_exibicao || role}</div>
+                  <div className="text-[10px] text-stone-400">{role}</div>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-56 bg-[#292524] border-[#44403C] text-stone-100"
+              className="w-60 bg-[#292524] border-[#44403C] text-stone-100 p-1"
             >
               <DropdownMenuLabel className="text-xs text-stone-400">
-                Simular Perfil de Usuário
+                <div className="font-bold text-stone-200">
+                  {profile?.nome_exibicao || 'Usuário'}
+                </div>
+                <div className="text-[10px] text-stone-400 truncate">
+                  {user?.email || 'Autenticado'}
+                </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-[#44403C]" />
+              <div className="px-2 py-1 text-[11px] text-stone-400 font-medium">
+                Alternar visualização rápida:
+              </div>
               {(['Garçom', 'Caixa', 'Gerente'] as UserRole[]).map((r) => (
                 <DropdownMenuItem
                   key={r}
                   onClick={() => setRole(r)}
-                  className={`cursor-pointer flex items-center justify-between text-xs py-2 px-3 focus:bg-[#44403C] focus:text-stone-100 ${
+                  className={`cursor-pointer flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg focus:bg-[#44403C] focus:text-stone-100 ${
                     role === r ? 'bg-amber-500/15 text-amber-400 font-semibold' : 'text-stone-300'
                   }`}
                 >
@@ -323,13 +340,24 @@ export default function Layout() {
                   {role === r && (
                     <Badge
                       variant="outline"
-                      className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px]"
+                      className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[9px]"
                     >
                       Ativo
                     </Badge>
                   )}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator className="bg-[#44403C]" />
+              <DropdownMenuItem
+                onClick={async () => {
+                  await signOut()
+                  navigate('/login')
+                }}
+                className="cursor-pointer text-xs py-2 px-2.5 text-red-400 hover:text-red-300 focus:bg-red-950/40 focus:text-red-300 flex items-center gap-2"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sair da conta</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -360,7 +388,7 @@ export default function Layout() {
                   variant="outline"
                   className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
                 >
-                  v1.0.0
+                  v1.1.0
                 </Badge>
               </div>
             ) : (
@@ -475,10 +503,10 @@ export default function Layout() {
         }`}
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
-          <span>Rachide Bar v1.0.0 — Sistema de Gestão Gastronômica & Fiscal</span>
+          <span>Rachide Bar v1.1.0 — Gestão Gastronômica, Pedidos On-line & Segurança RLS</span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Supabase Conectado (Mesas Expansíveis & Dados Sincronizados)
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Supabase Conectado & Operante com Auth por Perfil
           </span>
         </div>
       </footer>

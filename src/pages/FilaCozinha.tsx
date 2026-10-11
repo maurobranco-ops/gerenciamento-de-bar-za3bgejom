@@ -316,10 +316,15 @@ export default function FilaCozinha() {
                       >
                         {/* Topo do card: Mesa, Praça e Tempo */}
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-stone-950 font-black text-xs">
                               Mesa {item.mesaNumero ?? '?'}
                             </span>
+                            {item.origemOnline && (
+                              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-bold">
+                                Pedido On-line
+                              </Badge>
+                            )}
                             <Badge
                               variant="outline"
                               className={`text-[10px] uppercase font-bold flex items-center gap-1 ${

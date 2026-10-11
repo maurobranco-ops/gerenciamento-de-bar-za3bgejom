@@ -466,10 +466,22 @@ export default function Comandas() {
                       className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-between"
                     >
                       <div className="flex-1 mr-3">
-                        <div className="font-bold text-sm text-stone-100">{item.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-stone-100">{item.name}</span>
+                          {item.origemOnline && (
+                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-bold">
+                              Pedido On-line
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-stone-400 tabular-nums">
                           R$ {item.price.toFixed(2)} cada
                         </div>
+                        {item.observations && (
+                          <div className="text-[11px] text-amber-400/90 italic mt-0.5">
+                            Obs: {item.observations}
+                          </div>
+                        )}
                       </div>
 
                       {/* Stepper +/- */}

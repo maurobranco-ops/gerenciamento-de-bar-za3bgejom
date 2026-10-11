@@ -300,6 +300,7 @@ export const BarService = {
         price: Number(ci.preco_unitario),
         quantity: ci.quantidade,
         observations: ci.observacoes || undefined,
+        origemOnline: Boolean(ci.origem_online),
       }))
 
       return {
@@ -815,6 +816,7 @@ export const BarService = {
         areaPreparo: (row.area_preparo as AreaPreparo) || 'cozinha',
         status: (row.status as KitchenStatus) || 'pendente',
         observacoes: row.observacoes || undefined,
+        origemOnline: Boolean(row.origem_online),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         nomeProduto: item?.nome_produto,
@@ -848,5 +850,25 @@ export const BarService = {
       console.error('Erro ao remover item da fila:', error)
       throw error
     }
+  },
+
+  // --- PEDIDOS ON-LINE (RPC PARA ANON & AUTH) ---
+  async enviarPedidoOnline(payload: {
+    mesaNumero: number
+    clienteNome: string
+    itens: Array<{ produto_id: string; quantidade: number; observacoes?: string }>
+  }): Promise<{ sucesso: boolean; comanda_id: string; mensagem: string }> {
+    const { data, error } = await db.rpc('enviar_pedido_online', {
+      p_mesa_numero: payload.mesaNumero,
+      p_cliente_nome: payload.clienteNome,
+      p_itens: payload.itens,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC enviar_pedido_online:', error)
+      throw error
+    }
+
+    return data
   },
 }

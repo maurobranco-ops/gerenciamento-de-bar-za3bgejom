@@ -36,6 +36,7 @@ export interface FilaCozinhaItem {
   areaPreparo: AreaPreparo
   status: KitchenStatus
   observacoes?: string
+  origemOnline?: boolean
   createdAt: string
   updatedAt: string
   // Dados enriquecidos da comanda e produto
@@ -54,6 +55,7 @@ export interface ComandaItem {
   price: number
   quantity: number
   observations?: string
+  origemOnline?: boolean
 }
 
 export interface TableRecord {

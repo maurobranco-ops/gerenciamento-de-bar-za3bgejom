@@ -23,6 +23,7 @@ import {
 } from '../data/barData'
 import { useToast } from '../hooks/use-toast'
 import { BarService, SaveProductPayload } from '../services/barService'
+import { useAuth } from '../hooks/use-auth'
 
 interface BarContextType {
   role: UserRole
@@ -113,11 +114,18 @@ const STORAGE_KEYS = {
 
 export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast()
+  const { role: authRole } = useAuth()
 
-  const [role, setRoleState] = useState<UserRole>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ROLE)
-    return (saved as UserRole) || 'Gerente'
-  })
+  // Se houver role vinda do Supabase Auth real, prioriza; senão usa do estado
+  const [roleOverride, setRoleOverride] = useState<UserRole | null>(null)
+  const role: UserRole = roleOverride || authRole || 'Gerente'
+
+  // Sincroniza quando authRole mudar
+  useEffect(() => {
+    if (authRole) {
+      setRoleOverride(authRole)
+    }
+  }, [authRole])
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -204,9 +212,9 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [])
 
   const setRole = (newRole: UserRole) => {
-    setRoleState(newRole)
+    setRoleOverride(newRole)
     toast({
-      title: `Perfil alterado para ${newRole}`,
+      title: `Perfil alternado para ${newRole}`,
       description: `Menus e permissões atualizados conforme o perfil de ${newRole}.`,
     })
   }
