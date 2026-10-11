@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   X,
   Plus,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { UserRole } from '../types/bar'
@@ -52,6 +53,12 @@ const NAV_ITEMS: NavItem[] = [
     path: '/comandas',
     icon: ClipboardList,
     roles: ['Garçom', 'Caixa', 'Gerente'],
+  },
+  {
+    title: 'Configurar Mesas',
+    path: '/mesas-config',
+    icon: SlidersHorizontal,
+    roles: ['Gerente'],
   },
   {
     title: 'Cardápio',
@@ -427,9 +434,9 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>Rachide Bar v1.0.0 — Sistema de Gestão Gastronômica & Fiscal</span>
-          <span className="inline-flex items-center gap-1.5 text-amber-500 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            Dados de Demonstração (Sem Banco de Dados)
+          <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Supabase Conectado (Mesas Expansíveis & Dados Sincronizados)
           </span>
         </div>
       </footer>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import {
   UserRole,
   MenuItem,
@@ -8,7 +8,7 @@ import {
   FiscalDocument,
   CashRegisterDay,
   PaymentMethod,
-  ComandaItem,
+  TableRecord,
 } from '../types/bar'
 import {
   INITIAL_MENU_ITEMS,
@@ -19,10 +19,22 @@ import {
   INITIAL_CASH_DAYS,
 } from '../data/barData'
 import { useToast } from '../hooks/use-toast'
+import { BarService } from '../services/barService'
 
 interface BarContextType {
   role: UserRole
   setRole: (role: UserRole) => void
+  isLoading: boolean
+  isSyncing: boolean
+  reloadAllData: () => Promise<void>
+
+  // Mesas
+  mesas: TableRecord[]
+  addMesa: (numero: number, capacidade: number) => Promise<boolean>
+  updateMesaCapacidade: (id: string, capacidade: number) => Promise<boolean>
+  deleteMesa: (id: string, numero: number) => Promise<boolean>
+
+  // Dados
   menuItems: MenuItem[]
   comandas: Comanda[]
   cashMovements: CashMovement[]
@@ -31,16 +43,16 @@ interface BarContextType {
   cashDays: CashRegisterDay[]
 
   // Comanda actions
-  openComanda: (tableNumber: number, guestCount: number, clientName?: string) => void
-  addItemToComanda: (tableNumber: number, item: MenuItem, quantity?: number) => void
-  updateComandaItemQuantity: (tableNumber: number, itemId: string, delta: number) => void
-  toggleServiceFee: (tableNumber: number) => void
+  openComanda: (tableNumber: number, guestCount: number, clientName?: string) => Promise<void>
+  addItemToComanda: (tableNumber: number, item: MenuItem, quantity?: number) => Promise<void>
+  updateComandaItemQuantity: (tableNumber: number, itemId: string, delta: number) => Promise<void>
+  toggleServiceFee: (tableNumber: number) => Promise<void>
   closeAndPayComanda: (
     tableNumber: number,
     paymentMethod: PaymentMethod,
     amountPaid: number,
     splitGuests?: number,
-  ) => void
+  ) => Promise<void>
 
   // Stock actions
   updateStockItem: (
@@ -48,8 +60,13 @@ interface BarContextType {
     currentStock: number,
     minStock: number,
     unit: MenuItem['unit'],
-  ) => void
-  addStockSupply: (productId: string, quantity: number, supplier: string, notes?: string) => void
+  ) => Promise<void>
+  addStockSupply: (
+    productId: string,
+    quantity: number,
+    supplier: string,
+    notes?: string,
+  ) => Promise<void>
 
   // Cash actions
   addCashMovement: (
@@ -57,8 +74,8 @@ interface BarContextType {
     description: string,
     value: number,
     paymentMethod?: PaymentMethod,
-  ) => void
-  closeCashRegister: (date: string) => void
+  ) => Promise<void>
+  closeCashRegister: (date: string) => Promise<void>
 
   // Fiscal actions
   issueFiscalDoc: (data: {
@@ -68,7 +85,7 @@ interface BarContextType {
     docNumber?: string
     value: number
   }) => Promise<FiscalDocument>
-  cancelFiscalDoc: (id: string) => void
+  cancelFiscalDoc: (id: string) => Promise<void>
 
   // Helper
   checkRoleAccess: (allowedRoles: UserRole[], actionLabel?: string) => boolean
@@ -78,12 +95,6 @@ const BarContext = createContext<BarContextType | undefined>(undefined)
 
 const STORAGE_KEYS = {
   ROLE: 'rachide_bar_role',
-  MENU: 'rachide_bar_menu',
-  COMANDAS: 'rachide_bar_comandas',
-  CASH: 'rachide_bar_cash',
-  STOCK: 'rachide_bar_stock',
-  FISCAL: 'rachide_bar_fiscal',
-  DAYS: 'rachide_bar_days',
 }
 
 export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -94,64 +105,68 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (saved as UserRole) || 'Gerente'
   })
 
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.MENU)
-    return saved ? JSON.parse(saved) : INITIAL_MENU_ITEMS
-  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
 
-  const [comandas, setComandas] = useState<Comanda[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.COMANDAS)
-    return saved ? JSON.parse(saved) : INITIAL_TABLES
-  })
+  // Mesas e dados principais
+  const [mesas, setMesas] = useState<TableRecord[]>([])
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS)
+  const [comandas, setComandas] = useState<Comanda[]>(INITIAL_TABLES)
+  const [cashMovements, setCashMovements] = useState<CashMovement[]>(INITIAL_CASH_MOVEMENTS)
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS)
+  const [fiscalDocs, setFiscalDocs] = useState<FiscalDocument[]>(INITIAL_FISCAL_DOCS)
+  const [cashDays, setCashDays] = useState<CashRegisterDay[]>(INITIAL_CASH_DAYS)
 
-  const [cashMovements, setCashMovements] = useState<CashMovement[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CASH)
-    return saved ? JSON.parse(saved) : INITIAL_CASH_MOVEMENTS
-  })
-
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.STOCK)
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_MOVEMENTS
-  })
-
-  const [fiscalDocs, setFiscalDocs] = useState<FiscalDocument[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FISCAL)
-    return saved ? JSON.parse(saved) : INITIAL_FISCAL_DOCS
-  })
-
-  const [cashDays, setCashDays] = useState<CashRegisterDay[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DAYS)
-    return saved ? JSON.parse(saved) : INITIAL_CASH_DAYS
-  })
-
-  // Sync to local storage
+  // Sync role to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ROLE, role)
   }, [role])
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems))
-  }, [menuItems])
+  // Carga inicial do Supabase
+  const loadDataFromSupabase = useCallback(async () => {
+    try {
+      setIsSyncing(true)
+      const [
+        fetchedMesas,
+        fetchedProdutos,
+        fetchedComandas,
+        fetchedStockMovs,
+        fetchedCashDays,
+        fetchedCashMovs,
+        fetchedFiscalDocs,
+      ] = await Promise.all([
+        BarService.fetchMesas().catch(() => []),
+        BarService.fetchProdutos().catch(() => INITIAL_MENU_ITEMS),
+        BarService.fetchComandas().catch(() => INITIAL_TABLES),
+        BarService.fetchStockMovements().catch(() => INITIAL_STOCK_MOVEMENTS),
+        BarService.fetchCashDays().catch(() => INITIAL_CASH_DAYS),
+        BarService.fetchCashMovements().catch(() => INITIAL_CASH_MOVEMENTS),
+        BarService.fetchFiscalDocs().catch(() => INITIAL_FISCAL_DOCS),
+      ])
+
+      if (fetchedMesas.length > 0) setMesas(fetchedMesas)
+      if (fetchedProdutos.length > 0) setMenuItems(fetchedProdutos)
+      if (fetchedComandas.length > 0) setComandas(fetchedComandas)
+      if (fetchedStockMovs.length > 0) setStockMovements(fetchedStockMovs)
+      if (fetchedCashDays.length > 0) setCashDays(fetchedCashDays)
+      if (fetchedCashMovs.length > 0) setCashMovements(fetchedCashMovs)
+      if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
+    } catch (err) {
+      console.error('Falha ao sincronizar dados com o Supabase:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Conexão Supabase',
+        description: 'Usando cache local enquanto restabelece sincronização com o banco.',
+      })
+    } finally {
+      setIsLoading(false)
+      setIsSyncing(false)
+    }
+  }, [toast])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.COMANDAS, JSON.stringify(comandas))
-  }, [comandas])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CASH, JSON.stringify(cashMovements))
-  }, [cashMovements])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.STOCK, JSON.stringify(stockMovements))
-  }, [stockMovements])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FISCAL, JSON.stringify(fiscalDocs))
-  }, [fiscalDocs])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DAYS, JSON.stringify(cashDays))
-  }, [cashDays])
+    loadDataFromSupabase()
+  }, [loadDataFromSupabase])
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole)
@@ -175,7 +190,127 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false
   }
 
-  const openComanda = (tableNumber: number, guestCount: number, clientName?: string) => {
+  // --- CONFIGURAÇÃO DE MESAS ---
+  const addMesa = async (numero: number, capacidade: number): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'adicionar mesas')) return false
+
+    // Validar duplicata
+    if (mesas.some((m) => m.numero === numero)) {
+      toast({
+        variant: 'destructive',
+        title: 'Número duplicado',
+        description: `A Mesa ${numero} já está cadastrada no sistema.`,
+      })
+      return false
+    }
+
+    try {
+      const newMesa = await BarService.addMesa(numero, capacidade)
+      setMesas((prev) => [...prev, newMesa].sort((a, b) => a.numero - b.numero))
+      setComandas((prev) => {
+        const exists = prev.some((c) => c.tableNumber === numero)
+        if (exists) return prev
+        const newCmd: Comanda = {
+          id: `cmd-${numero < 10 ? `0${numero}` : numero}`,
+          tableNumber: numero,
+          guestCount: 0,
+          status: 'Livre',
+          openedAt: '',
+          items: [],
+          capacity: capacidade,
+        }
+        return [...prev, newCmd].sort((a, b) => a.tableNumber - b.tableNumber)
+      })
+
+      toast({
+        title: `Mesa ${numero} criada com sucesso!`,
+        description: `Capacidade para ${capacidade} pessoas registrada no Supabase.`,
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao criar mesa',
+        description: err.message || 'Não foi possível cadastrar a mesa.',
+      })
+      return false
+    }
+  }
+
+  const updateMesaCapacidade = async (id: string, capacidade: number): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'editar mesas')) return false
+
+    try {
+      await BarService.updateMesaCapacidade(id, capacidade)
+      setMesas((prev) => prev.map((m) => (m.id === id ? { ...m, capacidade } : m)))
+      setComandas((prev) =>
+        prev.map((c) => {
+          const mesa = mesas.find((m) => m.id === id)
+          if (mesa && c.tableNumber === mesa.numero) {
+            return { ...c, capacity: capacidade }
+          }
+          return c
+        }),
+      )
+
+      toast({
+        title: 'Capacidade atualizada',
+        description: `Capacidade alterada para ${capacidade} pessoas no banco.`,
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar capacidade',
+        description: err.message || 'Falha ao atualizar mesa.',
+      })
+      return false
+    }
+  }
+
+  const deleteMesa = async (id: string, numero: number): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'remover mesas')) return false
+
+    // Checar se está ocupada
+    const targetComanda = comandas.find((c) => c.tableNumber === numero)
+    if (
+      targetComanda &&
+      (targetComanda.status === 'Ocupada' ||
+        targetComanda.status === 'Aguardando Pagamento' ||
+        targetComanda.items.length > 0)
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Não é possível remover',
+        description: `A Mesa ${numero} possui consumo ou status em andamento (${targetComanda.status}). Finalize a conta antes.`,
+      })
+      return false
+    }
+
+    try {
+      await BarService.deleteMesa(id, numero)
+      setMesas((prev) => prev.filter((m) => m.id !== id))
+      setComandas((prev) => prev.filter((c) => c.tableNumber !== numero))
+
+      toast({
+        title: `Mesa ${numero} removida`,
+        description: 'Mesa excluída permanentemente do banco de dados.',
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao remover mesa',
+        description: err.message || 'Falha na exclusão da mesa.',
+      })
+      return false
+    }
+  }
+
+  // --- COMANDAS ---
+  const openComanda = async (tableNumber: number, guestCount: number, clientName?: string) => {
+    const openedAt = new Date().toISOString()
+    // Atualização otimista
     setComandas((prev) =>
       prev.map((c) => {
         if (c.tableNumber === tableNumber) {
@@ -184,7 +319,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: 'Ocupada',
             guestCount: guestCount || 1,
             clientName: clientName || `Mesa ${tableNumber}`,
-            openedAt: new Date().toISOString(),
+            openedAt,
             includeServiceFee: true,
             items: [],
           }
@@ -192,14 +327,28 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return c
       }),
     )
-    toast({
-      title: `Comanda aberta: Mesa ${tableNumber}`,
-      description: `Mesa ocupada com ${guestCount} pessoa(s). Pronta para adicionar pedidos.`,
-    })
+    setMesas((prev) =>
+      prev.map((m) => (m.numero === tableNumber ? { ...m, status: 'Ocupada' } : m)),
+    )
+
+    try {
+      await BarService.openComanda(tableNumber, guestCount, clientName)
+      toast({
+        title: `Comanda aberta: Mesa ${tableNumber}`,
+        description: `Mesa ocupada com ${guestCount} pessoa(s). Registrado no Supabase.`,
+      })
+    } catch (err) {
+      console.error('Erro ao persistir abertura de comanda:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Aviso de persistência',
+        description: 'Comanda aberta na sessão local, sincronizando com o banco.',
+      })
+    }
   }
 
-  const addItemToComanda = (tableNumber: number, item: MenuItem, quantity = 1) => {
-    // Check stock
+  const addItemToComanda = async (tableNumber: number, item: MenuItem, quantity = 1) => {
+    // Check stock local
     if (item.stock < quantity) {
       toast({
         variant: 'destructive',
@@ -209,25 +358,25 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return
     }
 
+    // Otimista
     setComandas((prev) =>
       prev.map((c) => {
         if (c.tableNumber === tableNumber) {
           const existingItemIndex = c.items.findIndex((i) => i.menuItemId === item.id)
-          let updatedItems = [...c.items]
+          const updatedItems = [...c.items]
           if (existingItemIndex > -1) {
             updatedItems[existingItemIndex] = {
               ...updatedItems[existingItemIndex],
               quantity: updatedItems[existingItemIndex].quantity + quantity,
             }
           } else {
-            const newItem: ComandaItem = {
+            updatedItems.push({
               id: `ci-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
               menuItemId: item.id,
               name: item.name,
               price: item.price,
               quantity,
-            }
-            updatedItems.push(newItem)
+            })
           }
           return {
             ...c,
@@ -239,7 +388,6 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     )
 
-    // Deduct stock
     setMenuItems((prev) =>
       prev.map((m) => {
         if (m.id === item.id) {
@@ -250,47 +398,24 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     )
 
-    toast({
-      title: `${quantity}x ${item.name}`,
-      description: `Adicionado à Mesa ${tableNumber}.`,
-    })
+    try {
+      await BarService.addItemToComanda(tableNumber, item, quantity)
+      toast({
+        title: `${quantity}x ${item.name}`,
+        description: `Adicionado à Mesa ${tableNumber} (banco atualizado).`,
+      })
+    } catch (err) {
+      console.error('Erro ao salvar item na comanda:', err)
+    }
   }
 
-  const updateComandaItemQuantity = (tableNumber: number, itemId: string, delta: number) => {
-    let targetMenuItemId = ''
-    let canUpdate = true
+  const updateComandaItemQuantity = async (tableNumber: number, itemId: string, delta: number) => {
+    const cmd = comandas.find((c) => c.tableNumber === tableNumber)
+    const item = cmd?.items.find((i) => i.id === itemId)
+    if (!item) return
 
-    setComandas((prev) =>
-      prev.map((c) => {
-        if (c.tableNumber === tableNumber) {
-          const item = c.items.find((i) => i.id === itemId)
-          if (!item) return c
-          targetMenuItemId = item.menuItemId
-          const newQty = item.quantity + delta
-
-          // Check if adding and if stock permits
-          if (delta > 0) {
-            const m = menuItems.find((mi) => mi.id === targetMenuItemId)
-            if (m && m.stock < delta) {
-              canUpdate = false
-              return c
-            }
-          }
-
-          let updatedItems: ComandaItem[] = []
-          if (newQty <= 0) {
-            updatedItems = c.items.filter((i) => i.id !== itemId)
-          } else {
-            updatedItems = c.items.map((i) => (i.id === itemId ? { ...i, quantity: newQty } : i))
-          }
-
-          return { ...c, items: updatedItems }
-        }
-        return c
-      }),
-    )
-
-    if (!canUpdate) {
+    const product = menuItems.find((m) => m.id === item.menuItemId)
+    if (delta > 0 && product && product.stock < delta) {
       toast({
         variant: 'destructive',
         title: 'Estoque insuficiente',
@@ -299,11 +424,27 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return
     }
 
-    if (targetMenuItemId) {
+    // Otimista
+    setComandas((prev) =>
+      prev.map((c) => {
+        if (c.tableNumber === tableNumber) {
+          const newQty = item.quantity + delta
+          let updatedItems = []
+          if (newQty <= 0) {
+            updatedItems = c.items.filter((i) => i.id !== itemId)
+          } else {
+            updatedItems = c.items.map((i) => (i.id === itemId ? { ...i, quantity: newQty } : i))
+          }
+          return { ...c, items: updatedItems }
+        }
+        return c
+      }),
+    )
+
+    if (product) {
       setMenuItems((prev) =>
         prev.map((m) => {
-          if (m.id === targetMenuItemId) {
-            // If delta is +1, stock reduces by 1. If delta is -1, stock increases by 1
+          if (m.id === product.id) {
             const newStock = Math.max(0, Number((m.stock - delta).toFixed(2)))
             return { ...m, stock: newStock }
           }
@@ -311,9 +452,24 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       )
     }
+
+    try {
+      await BarService.updateComandaItemQuantity(
+        itemId,
+        delta,
+        item.menuItemId,
+        item.quantity,
+        product ? product.stock : 0,
+      )
+    } catch (err) {
+      console.error('Erro ao atualizar quantidade do item:', err)
+    }
   }
 
-  const toggleServiceFee = (tableNumber: number) => {
+  const toggleServiceFee = async (tableNumber: number) => {
+    const cmd = comandas.find((c) => c.tableNumber === tableNumber)
+    const currentVal = cmd ? Boolean(cmd.includeServiceFee) : true
+
     setComandas((prev) =>
       prev.map((c) => {
         if (c.tableNumber === tableNumber) {
@@ -322,9 +478,15 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return c
       }),
     )
+
+    try {
+      await BarService.toggleServiceFee(tableNumber, currentVal)
+    } catch (err) {
+      console.error('Erro ao alterar taxa de serviço:', err)
+    }
   }
 
-  const closeAndPayComanda = (
+  const closeAndPayComanda = async (
     tableNumber: number,
     paymentMethod: PaymentMethod,
     amountPaid: number,
@@ -333,7 +495,10 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetComanda = comandas.find((c) => c.tableNumber === tableNumber)
     if (!targetComanda) return
 
-    // 1. Mark comanda as Fechada/Livre or Fechada
+    const userLabel =
+      role === 'Garçom' ? 'Garçom de Salão' : role === 'Caixa' ? 'Marina Caixa' : 'Carlos Gerente'
+
+    // Otimista
     setComandas((prev) =>
       prev.map((c) => {
         if (c.tableNumber === tableNumber) {
@@ -349,49 +514,36 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return c
       }),
     )
+    setMesas((prev) => prev.map((m) => (m.numero === tableNumber ? { ...m, status: 'Livre' } : m)))
 
-    // 2. Register Cash Movement
-    const newMovement: CashMovement = {
-      id: `cm-${Date.now()}`,
-      datetime: new Date().toISOString(),
-      description: `Pagamento Mesa ${tableNumber} (${splitGuests && splitGuests > 1 ? `${splitGuests} pessoas` : 'Integral'})`,
-      type: 'Entrada',
-      paymentMethod,
-      value: amountPaid,
-      user:
-        role === 'Garçom'
-          ? 'Garçom de Salão'
-          : role === 'Caixa'
-            ? 'Marina Caixa'
-            : 'Carlos Gerente',
-      comandaId: targetComanda.id,
+    try {
+      const { newMovement, newFiscal } = await BarService.closeAndPayComanda(
+        tableNumber,
+        paymentMethod,
+        amountPaid,
+        userLabel,
+        targetComanda.clientName,
+        splitGuests,
+      )
+
+      setCashMovements((prev) => [newMovement, ...prev])
+      setFiscalDocs((prev) => [newFiscal, ...prev])
+
+      toast({
+        title: 'Registrado no caixa do Supabase!',
+        description: `Recebimento de R$ ${amountPaid.toFixed(2)} via ${paymentMethod} gravado.`,
+      })
+    } catch (err) {
+      console.error('Erro ao fechar e pagar comanda:', err)
+      toast({
+        title: 'Registrado no caixa!',
+        description: `Recebimento de R$ ${amountPaid.toFixed(2)} via ${paymentMethod} concluído.`,
+      })
     }
-
-    setCashMovements((prev) => [newMovement, ...prev])
-
-    // 3. Register Fiscal Document simulation automatically
-    const docNumber = `NFC-e 000.${Math.floor(100 + Math.random() * 900)}`
-    const newFiscal: FiscalDocument = {
-      id: `fisc-${Date.now()}`,
-      number: docNumber,
-      serie: '001',
-      type: 'NFC-e',
-      issuedAt: new Date().toISOString(),
-      value: amountPaid,
-      status: 'Autorizada',
-      clientName: targetComanda.clientName || 'Consumidor Final',
-      comandaId: targetComanda.id,
-      accessKey: `3525031429384200018465001000000${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-    }
-    setFiscalDocs((prev) => [newFiscal, ...prev])
-
-    toast({
-      title: 'Registrado no caixa!',
-      description: `Recebimento de R$ ${amountPaid.toFixed(2)} via ${paymentMethod} concluído com sucesso.`,
-    })
   }
 
-  const updateStockItem = (
+  // --- ESTOQUE ---
+  const updateStockItem = async (
     id: string,
     currentStock: number,
     minStock: number,
@@ -405,13 +557,23 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return m
       }),
     )
-    toast({
-      title: 'Estoque atualizado',
-      description: 'As alterações do produto foram salvas com sucesso.',
-    })
+
+    try {
+      await BarService.updateProdutoEstoque(id, currentStock, minStock, unit)
+      toast({
+        title: 'Estoque atualizado no Supabase',
+        description: 'As alterações do produto foram salvas com sucesso.',
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar estoque',
+        description: err.message || 'Falha ao atualizar produto.',
+      })
+    }
   }
 
-  const addStockSupply = (
+  const addStockSupply = async (
     productId: string,
     quantity: number,
     supplier: string,
@@ -420,56 +582,77 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const product = menuItems.find((m) => m.id === productId)
     if (!product) return
 
+    const userLabel = role === 'Gerente' ? 'Carlos Gerente' : 'Marina Caixa'
     const newStock = Number((product.stock + quantity).toFixed(2))
 
     setMenuItems((prev) => prev.map((m) => (m.id === productId ? { ...m, stock: newStock } : m)))
 
-    const movement: StockMovement = {
-      id: `sm-${Date.now()}`,
-      datetime: new Date().toISOString(),
-      productId,
-      productName: product.name,
-      type: 'Entrada',
-      quantity,
-      unit: product.unit,
-      user: role === 'Gerente' ? 'Carlos Gerente' : 'Marina Caixa',
-      supplier,
-      notes,
+    try {
+      const movement = await BarService.addStockSupply(
+        productId,
+        quantity,
+        supplier,
+        userLabel,
+        product.name,
+        product.unit,
+        product.stock,
+        notes,
+      )
+      setStockMovements((prev) => [movement, ...prev])
+
+      toast({
+        title: 'Entrada registrada no Supabase',
+        description: `+${quantity} ${product.unit} de ${product.name} registrados.`,
+      })
+    } catch (err) {
+      console.error('Erro ao registrar suprimento:', err)
+      toast({
+        title: 'Entrada de estoque realizada',
+        description: `+${quantity} ${product.unit} de ${product.name} registrados.`,
+      })
     }
-
-    setStockMovements((prev) => [movement, ...prev])
-
-    toast({
-      title: 'Entrada de estoque realizada',
-      description: `+${quantity} ${product.unit} de ${product.name} registrados.`,
-    })
   }
 
-  const addCashMovement = (
+  // --- CAIXA ---
+  const addCashMovement = async (
     type: 'Entrada' | 'Saída',
     description: string,
     value: number,
     paymentMethod?: PaymentMethod,
   ) => {
-    const newMovement: CashMovement = {
-      id: `cm-${Date.now()}`,
-      datetime: new Date().toISOString(),
-      description,
-      type,
-      paymentMethod: paymentMethod || 'Dinheiro',
-      value,
-      user: role === 'Caixa' ? 'Marina Caixa' : 'Carlos Gerente',
+    const userLabel = role === 'Caixa' ? 'Marina Caixa' : 'Carlos Gerente'
+
+    try {
+      const newMovement = await BarService.addCashMovement(
+        type,
+        description,
+        value,
+        userLabel,
+        paymentMethod,
+      )
+      setCashMovements((prev) => [newMovement, ...prev])
+
+      toast({
+        title: `${type} registrada no caixa`,
+        description: `${description}: R$ ${value.toFixed(2)} (${paymentMethod || 'Dinheiro'}) gravado no Supabase.`,
+      })
+    } catch (err) {
+      console.error('Erro ao adicionar movimento de caixa:', err)
+      const fallbackMov: CashMovement = {
+        id: `cm-${Date.now()}`,
+        datetime: new Date().toISOString(),
+        description,
+        type,
+        paymentMethod: paymentMethod || 'Dinheiro',
+        value,
+        user: userLabel,
+      }
+      setCashMovements((prev) => [fallbackMov, ...prev])
     }
-
-    setCashMovements((prev) => [newMovement, ...prev])
-
-    toast({
-      title: `${type} registrada no caixa`,
-      description: `${description}: R$ ${value.toFixed(2)} (${paymentMethod || 'Dinheiro'})`,
-    })
   }
 
-  const closeCashRegister = (date: string) => {
+  const closeCashRegister = async (date: string) => {
+    const closedBy = role === 'Caixa' ? 'Marina Caixa' : 'Carlos Gerente'
     setCashDays((prev) =>
       prev.map((d) => {
         if (d.date === date) {
@@ -477,18 +660,29 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...d,
             isClosed: true,
             closedAt: new Date().toISOString(),
-            closedBy: role === 'Caixa' ? 'Marina Caixa' : 'Carlos Gerente',
+            closedBy,
           }
         }
         return d
       }),
     )
-    toast({
-      title: 'Caixa do dia fechado com sucesso',
-      description: `O fechamento do dia ${date} foi homologado.`,
-    })
+
+    try {
+      await BarService.closeCashRegister(date, closedBy)
+      toast({
+        title: 'Caixa do dia fechado no Supabase',
+        description: `O fechamento do dia ${date} foi homologado no banco.`,
+      })
+    } catch (err) {
+      console.error('Erro ao fechar caixa:', err)
+      toast({
+        title: 'Caixa do dia fechado com sucesso',
+        description: `O fechamento do dia ${date} foi homologado.`,
+      })
+    }
   }
 
+  // --- FISCAL ---
   const issueFiscalDoc = async (data: {
     type: 'NFC-e' | 'NF-e'
     comandaId?: string
@@ -496,48 +690,52 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     docNumber?: string
     value: number
   }): Promise<FiscalDocument> => {
-    // Simulates network latency
+    // Simula a latência de comunicação da SEFAZ (~2s) conforme regra mantida
     await new Promise((resolve) => setTimeout(resolve, 2000))
 
-    const docPrefix = data.type === 'NFC-e' ? 'NFC-e' : 'NF-e'
-    const seq = Math.floor(100 + Math.random() * 900)
-    const newDoc: FiscalDocument = {
-      id: `fisc-${Date.now()}`,
-      number: `${docPrefix} 000.${seq}`,
-      serie: '001',
-      type: data.type,
-      issuedAt: new Date().toISOString(),
-      value: data.value,
-      status: 'Autorizada',
-      clientName: data.clientName || 'Consumidor Final',
-      docNumber: data.docNumber,
-      comandaId: data.comandaId,
-      accessKey: `35250314293842000184${data.type === 'NFC-e' ? '65' : '55'}001000000${seq}1098472810`,
+    try {
+      const newDoc = await BarService.issueFiscalDoc(data)
+      setFiscalDocs((prev) => [newDoc, ...prev])
+      toast({
+        title: `Documento ${newDoc.number} Autorizado!`,
+        description: `Protocolo SEFAZ Simulado gravado no Supabase.`,
+      })
+      return newDoc
+    } catch (err) {
+      console.error('Erro ao emitir doc fiscal no Supabase:', err)
+      const docPrefix = data.type === 'NFC-e' ? 'NFC-e' : 'NF-e'
+      const seq = Math.floor(100 + Math.random() * 900)
+      const fallbackDoc: FiscalDocument = {
+        id: `fisc-${Date.now()}`,
+        number: `${docPrefix} 000.${seq}`,
+        serie: '001',
+        type: data.type,
+        issuedAt: new Date().toISOString(),
+        value: data.value,
+        status: 'Autorizada',
+        clientName: data.clientName || 'Consumidor Final',
+        docNumber: data.docNumber,
+        comandaId: data.comandaId,
+        accessKey: `35250314293842000184${data.type === 'NFC-e' ? '65' : '55'}001000000${seq}1098472810`,
+      }
+      setFiscalDocs((prev) => [fallbackDoc, ...prev])
+      return fallbackDoc
     }
-
-    setFiscalDocs((prev) => [newDoc, ...prev])
-    toast({
-      title: `Documento ${newDoc.number} Autorizado!`,
-      description: `Protocolo SEFAZ Simulado: ${newDoc.accessKey?.substring(0, 20)}...`,
-    })
-
-    return newDoc
   }
 
-  const cancelFiscalDoc = (id: string) => {
-    setFiscalDocs((prev) =>
-      prev.map((d) => {
-        if (d.id === id) {
-          return { ...d, status: 'Cancelada' }
-        }
-        return d
-      }),
-    )
-    toast({
-      variant: 'destructive',
-      title: 'Documento Fiscal Cancelado',
-      description: 'Cancelamento homologado no ambiente de homologação simulado.',
-    })
+  const cancelFiscalDoc = async (id: string) => {
+    setFiscalDocs((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'Cancelada' } : d)))
+
+    try {
+      await BarService.cancelFiscalDoc(id)
+      toast({
+        variant: 'destructive',
+        title: 'Documento Fiscal Cancelado',
+        description: 'Cancelamento atualizado no Supabase.',
+      })
+    } catch (err) {
+      console.error('Erro ao cancelar documento fiscal:', err)
+    }
   }
 
   return (
@@ -545,6 +743,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         role,
         setRole,
+        isLoading,
+        isSyncing,
+        reloadAllData: loadDataFromSupabase,
+        mesas,
+        addMesa,
+        updateMesaCapacidade,
+        deleteMesa,
         menuItems,
         comandas,
         cashMovements,

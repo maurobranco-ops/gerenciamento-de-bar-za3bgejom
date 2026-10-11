@@ -33,6 +33,15 @@ export interface ComandaItem {
   observations?: string
 }
 
+export interface TableRecord {
+  id: string
+  numero: number
+  status: TableStatus
+  capacidade: number
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface Comanda {
   id: string
   tableNumber: number
@@ -43,6 +52,7 @@ export interface Comanda {
   openedAt: string
   closedAt?: string
   includeServiceFee?: boolean
+  capacity?: number
 }
 
 export type PaymentMethod = 'Dinheiro' | 'Cartão Débito' | 'Cartão Crédito' | 'Pix' | 'TEP'

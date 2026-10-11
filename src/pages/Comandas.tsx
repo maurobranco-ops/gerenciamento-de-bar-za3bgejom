@@ -76,10 +76,13 @@ export default function Comandas() {
     : null
 
   // Filter tables visible to role (Fechada is visible mainly to Caixa/Gerente)
-  const visibleTables = comandas.filter((c) => {
-    if (role === 'Garçom' && c.status === 'Fechada') return false
-    return true
-  })
+  // Ensure tables are ordered by tableNumber
+  const visibleTables = [...comandas]
+    .sort((a, b) => a.tableNumber - b.tableNumber)
+    .filter((c) => {
+      if (role === 'Garçom' && c.status === 'Fechada') return false
+      return true
+    })
 
   // Table status colors & labels
   const getStatusBadge = (status: TableStatus) => {
@@ -232,12 +235,24 @@ export default function Comandas() {
       {/* Top Bar with Filter & Status Legend */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-[#292524] border border-[#44403C]">
         <div>
-          <h2 className="text-xl font-black text-stone-100 flex items-center gap-2">
-            Salão & Comandas
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-800 text-stone-300 font-semibold border border-stone-700">
-              {visibleTables.length} Mesas cadastradas
-            </span>
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-black text-stone-100 flex items-center gap-2">
+              Salão & Comandas
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-800 text-stone-300 font-semibold border border-stone-700">
+                {visibleTables.length} Mesas no Salão
+              </span>
+            </h2>
+            {role === 'Gerente' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/mesas-config')}
+                className="bg-[#1C1917] hover:bg-[#44403C] border-[#44403C] text-amber-400 text-xs font-semibold h-7"
+              >
+                Configurar Mesas
+              </Button>
+            )}
+          </div>
           <p className="text-xs text-stone-400 mt-1">
             Clique em uma mesa livre para abrir uma comanda ou em uma ocupada para lançar pedidos e
             fechar conta.
@@ -290,14 +305,20 @@ export default function Comandas() {
                 <div className="font-bold text-sm text-stone-100 truncate max-w-[140px]">
                   {cmd.clientName || `Mesa ${cmd.tableNumber}`}
                 </div>
-                {cmd.status !== 'Livre' && (
+                {cmd.status !== 'Livre' ? (
                   <div className="flex items-center justify-center gap-1 text-[11px] text-stone-400 mt-0.5">
-                    <Users className="w-3 h-3" />
+                    <Users className="w-3.5 h-3.5" />
                     <span>{cmd.guestCount} pessoas</span>
                   </div>
+                ) : (
+                  cmd.capacity && (
+                    <div className="flex items-center justify-center gap-1 text-[11px] text-stone-500 mt-0.5">
+                      <Users className="w-3 h-3" />
+                      <span>{cmd.capacity} lugares</span>
+                    </div>
+                  )
                 )}
               </div>
-
               <div className="mt-2 w-full pt-2 border-t border-current/20">
                 {cmd.status === 'Livre' ? (
                   <span className="text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1">

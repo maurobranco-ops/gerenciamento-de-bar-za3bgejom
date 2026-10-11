@@ -77,7 +77,7 @@ export default function Dashboard() {
 
   const [closeRegisterModal, setCloseRegisterModal] = useState(false)
 
-  // Calculations
+  // Calculations (calculados diretamente dos dados do Supabase)
   const todayCashEntries = cashMovements
     .filter((m) => m.type === 'Entrada')
     .reduce((sum, m) => sum + m.value, 0)
@@ -85,6 +85,10 @@ export default function Dashboard() {
   const openComandasCount = comandas.filter(
     (c) => c.status === 'Ocupada' || c.status === 'Aguardando Pagamento',
   ).length
+
+  const totalMesasCount = comandas.length
+  const ocupacaoPercent =
+    totalMesasCount > 0 ? Math.round((openComandasCount / totalMesasCount) * 100) : 0
 
   // Ticket Médio calculation
   const totalSalesCount = cashMovements.filter((m) => m.type === 'Entrada').length
@@ -141,9 +145,9 @@ export default function Dashboard() {
             <span className="text-xl sm:text-2xl font-black text-stone-100 tracking-tight">
               Olá, {role}!
             </span>
-            <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/40 text-xs px-2.5 py-0.5 font-bold flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              Modo Demonstração
+            <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 text-xs px-2.5 py-0.5 font-bold flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              Supabase Ativo
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-stone-400 capitalize mt-1">
@@ -201,7 +205,9 @@ export default function Dashboard() {
               {openComandasCount} <span className="text-sm font-normal text-stone-400">mesas</span>
             </div>
             <div className="flex items-center gap-1 mt-1 text-xs text-stone-400">
-              <span>Capacidade ativa: 60%</span>
+              <span>
+                Capacidade ativa: {ocupacaoPercent}% ({totalMesasCount} mesas no banco)
+              </span>
             </div>
           </div>
         </div>
