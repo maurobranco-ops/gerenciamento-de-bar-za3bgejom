@@ -1,15 +1,411 @@
 // AVOID UPDATING THIS FILE DIRECTLY. It is automatically generated.
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: '14.17'
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      [_ in never]: never
+      caixa_diarios: {
+        Row: {
+          created_at: string
+          data: string
+          fechado: boolean
+          fechado_em: string | null
+          fechado_por: string | null
+          saldo_abertura: number
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          fechado?: boolean
+          fechado_em?: string | null
+          fechado_por?: string | null
+          saldo_abertura?: number
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          fechado?: boolean
+          fechado_em?: string | null
+          fechado_por?: string | null
+          saldo_abertura?: number
+        }
+        Relationships: []
+      }
+      comanda_itens: {
+        Row: {
+          comanda_id: string
+          created_at: string
+          id: string
+          nome_produto: string
+          observacoes: string | null
+          preco_unitario: number
+          produto_id: string
+          quantidade: number
+          updated_at: string
+        }
+        Insert: {
+          comanda_id: string
+          created_at?: string
+          id: string
+          nome_produto: string
+          observacoes?: string | null
+          preco_unitario?: number
+          produto_id: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Update: {
+          comanda_id?: string
+          created_at?: string
+          id?: string
+          nome_produto?: string
+          observacoes?: string | null
+          preco_unitario?: number
+          produto_id?: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comanda_itens_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "comandas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comanda_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comandas: {
+        Row: {
+          aberta_em: string | null
+          cliente_nome: string | null
+          created_at: string
+          fechada_em: string | null
+          garcom: string | null
+          id: string
+          inclui_taxa_servico: boolean
+          mesa_numero: number
+          pessoas: number
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          aberta_em?: string | null
+          cliente_nome?: string | null
+          created_at?: string
+          fechada_em?: string | null
+          garcom?: string | null
+          id: string
+          inclui_taxa_servico?: boolean
+          mesa_numero: number
+          pessoas?: number
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          aberta_em?: string | null
+          cliente_nome?: string | null
+          created_at?: string
+          fechada_em?: string | null
+          garcom?: string | null
+          id?: string
+          inclui_taxa_servico?: boolean
+          mesa_numero?: number
+          pessoas?: number
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comandas_mesa_numero_fkey"
+            columns: ["mesa_numero"]
+            isOneToOne: false
+            referencedRelation: "mesas"
+            referencedColumns: ["numero"]
+          },
+        ]
+      }
+      documentos_fiscais: {
+        Row: {
+          chave_acesso: string | null
+          comanda_id: string | null
+          created_at: string
+          documento_cliente: string | null
+          emitido_em: string
+          id: string
+          nome_cliente: string | null
+          numero: string
+          serie: string
+          status: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          chave_acesso?: string | null
+          comanda_id?: string | null
+          created_at?: string
+          documento_cliente?: string | null
+          emitido_em?: string
+          id: string
+          nome_cliente?: string | null
+          numero: string
+          serie?: string
+          status?: string
+          tipo: string
+          valor?: number
+        }
+        Update: {
+          chave_acesso?: string | null
+          comanda_id?: string | null
+          created_at?: string
+          documento_cliente?: string | null
+          emitido_em?: string
+          id?: string
+          nome_cliente?: string | null
+          numero?: string
+          serie?: string
+          status?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_fiscais_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "comandas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fila_cozinha: {
+        Row: {
+          area_preparo: string
+          comanda_item_id: string | null
+          created_at: string
+          id: string
+          observacoes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          area_preparo: string
+          comanda_item_id?: string | null
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          area_preparo?: string
+          comanda_item_id?: string | null
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fila_cozinha_comanda_item_id_fkey"
+            columns: ["comanda_item_id"]
+            isOneToOne: false
+            referencedRelation: "comanda_itens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mesas: {
+        Row: {
+          capacidade: number
+          created_at: string
+          id: string
+          numero: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          capacidade?: number
+          created_at?: string
+          id?: string
+          numero: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          capacidade?: number
+          created_at?: string
+          id?: string
+          numero?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      movimentacoes_estoque: {
+        Row: {
+          created_at: string
+          data_hora: string
+          fornecedor: string | null
+          id: string
+          motivo: string | null
+          nome_produto: string
+          produto_id: string
+          quantidade: number
+          tipo: string
+          unidade: string
+          usuario: string
+        }
+        Insert: {
+          created_at?: string
+          data_hora?: string
+          fornecedor?: string | null
+          id: string
+          motivo?: string | null
+          nome_produto: string
+          produto_id: string
+          quantidade: number
+          tipo: string
+          unidade: string
+          usuario: string
+        }
+        Update: {
+          created_at?: string
+          data_hora?: string
+          fornecedor?: string | null
+          id?: string
+          motivo?: string | null
+          nome_produto?: string
+          produto_id?: string
+          quantidade?: number
+          tipo?: string
+          unidade?: string
+          usuario?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_estoque_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimentos_caixa: {
+        Row: {
+          comanda_id: string | null
+          created_at: string
+          data_hora: string
+          descricao: string
+          forma_pagamento: string | null
+          id: string
+          tipo: string
+          usuario: string
+          valor: number
+        }
+        Insert: {
+          comanda_id?: string | null
+          created_at?: string
+          data_hora?: string
+          descricao: string
+          forma_pagamento?: string | null
+          id: string
+          tipo: string
+          usuario: string
+          valor?: number
+        }
+        Update: {
+          comanda_id?: string | null
+          created_at?: string
+          data_hora?: string
+          descricao?: string
+          forma_pagamento?: string | null
+          id?: string
+          tipo?: string
+          usuario?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentos_caixa_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "comandas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      produtos: {
+        Row: {
+          area_preparo: string
+          ativo: boolean
+          categoria: string
+          created_at: string
+          descricao: string
+          estoque: number
+          estoque_minimo: number
+          id: string
+          image_url: string | null
+          nome: string
+          preco: number
+          unidade: string
+          updated_at: string
+        }
+        Insert: {
+          area_preparo?: string
+          ativo?: boolean
+          categoria: string
+          created_at?: string
+          descricao?: string
+          estoque?: number
+          estoque_minimo?: number
+          id: string
+          image_url?: string | null
+          nome: string
+          preco?: number
+          unidade: string
+          updated_at?: string
+        }
+        Update: {
+          area_preparo?: string
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          descricao?: string
+          estoque?: number
+          estoque_minimo?: number
+          id?: string
+          image_url?: string | null
+          nome?: string
+          preco?: number
+          unidade?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -26,31 +422,33 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, 'public'>]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
-    : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
-    ? (DefaultSchema['Tables'] & DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -59,23 +457,23 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -84,23 +482,23 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -109,36 +507,36 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema['Enums']
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
-    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema['CompositeTypes']
+    | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
-    : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
-    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
@@ -146,3 +544,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
