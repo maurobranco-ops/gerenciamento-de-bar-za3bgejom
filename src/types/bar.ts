@@ -12,6 +12,10 @@ export type ProductCategory =
 
 export type StockUnit = 'un' | 'kg' | 'L' | 'g' | 'ml'
 
+export type AreaPreparo = 'bar' | 'cozinha'
+
+export type KitchenStatus = 'pendente' | 'preparando' | 'pronto' | 'entregue'
+
 export interface MenuItem {
   id: string
   name: string
@@ -21,7 +25,26 @@ export interface MenuItem {
   unit: StockUnit
   stock: number // e.g., 24 un or 2.5 kg
   minStock: number
+  areaPreparo?: AreaPreparo
+  ativo?: boolean
   imageUrl?: string
+}
+
+export interface FilaCozinhaItem {
+  id: string
+  comandaItemId?: string
+  areaPreparo: AreaPreparo
+  status: KitchenStatus
+  observacoes?: string
+  createdAt: string
+  updatedAt: string
+  // Dados enriquecidos da comanda e produto
+  nomeProduto?: string
+  quantidade?: number
+  precoUnitario?: number
+  mesaNumero?: number
+  clienteNome?: string
+  comandaId?: string
 }
 
 export interface ComandaItem {

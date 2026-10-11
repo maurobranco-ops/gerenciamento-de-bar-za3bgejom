@@ -10,10 +10,27 @@ import {
   CashRegisterDay,
   PaymentMethod,
   TableStatus,
+  FilaCozinhaItem,
+  KitchenStatus,
+  AreaPreparo,
 } from '../types/bar'
 
 // Bypass de tipo estático enquanto os types do Supabase gerados automaticamente não refletem a nova migração
 const db = supabase as any
+
+export interface SaveProductPayload {
+  id?: string
+  nome: string
+  categoria: string
+  preco: number
+  descricao?: string
+  unidade: string
+  estoque: number
+  estoque_minimo: number
+  area_preparo: AreaPreparo
+  ativo?: boolean
+  image_url?: string
+}
 
 export const BarService = {
   // --- MESAS ---
@@ -98,12 +115,13 @@ export const BarService = {
   },
 
   // --- PRODUTOS ---
-  async fetchProdutos(): Promise<MenuItem[]> {
-    const { data, error } = await db
-      .from('produtos')
-      .select('*')
-      .eq('ativo', true)
-      .order('nome', { ascending: true })
+  async fetchProdutos(includeInactive = false): Promise<MenuItem[]> {
+    let query = db.from('produtos').select('*').order('nome', { ascending: true })
+    if (!includeInactive) {
+      query = query.eq('ativo', true)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('Erro ao buscar produtos:', error)
@@ -119,8 +137,110 @@ export const BarService = {
       unit: p.unidade,
       stock: Number(p.estoque),
       minStock: Number(p.estoque_minimo),
+      areaPreparo: (p.area_preparo as AreaPreparo) || 'bar',
+      ativo: p.ativo !== false,
       imageUrl: p.image_url || undefined,
     }))
+  },
+
+  async createProduto(payload: SaveProductPayload): Promise<MenuItem> {
+    const id = payload.id || `prod-${Date.now()}`
+    const nowIso = new Date().toISOString()
+    const { data, error } = await db
+      .from('produtos')
+      .insert({
+        id,
+        nome: payload.nome.trim(),
+        categoria: payload.categoria,
+        preco: Number(payload.preco),
+        descricao: payload.descricao || '',
+        unidade: payload.unidade,
+        estoque: Number(payload.estoque || 0),
+        estoque_minimo: Number(payload.estoque_minimo || 0),
+        area_preparo: payload.area_preparo || 'bar',
+        ativo: payload.ativo !== false,
+        image_url: payload.image_url || null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Erro ao criar produto:', error)
+      throw error || new Error('Não foi possível criar o produto.')
+    }
+
+    return {
+      id: data.id,
+      name: data.nome,
+      category: data.categoria,
+      price: Number(data.preco),
+      description: data.descricao || '',
+      unit: data.unidade,
+      stock: Number(data.estoque),
+      minStock: Number(data.estoque_minimo),
+      areaPreparo: data.area_preparo as AreaPreparo,
+      ativo: data.ativo,
+      imageUrl: data.image_url || undefined,
+    }
+  },
+
+  async updateProduto(id: string, payload: Partial<SaveProductPayload>): Promise<MenuItem> {
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    }
+    if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
+    if (payload.categoria !== undefined) updateData.categoria = payload.categoria
+    if (payload.preco !== undefined) updateData.preco = Number(payload.preco)
+    if (payload.descricao !== undefined) updateData.descricao = payload.descricao
+    if (payload.unidade !== undefined) updateData.unidade = payload.unidade
+    if (payload.estoque !== undefined) updateData.estoque = Number(payload.estoque)
+    if (payload.estoque_minimo !== undefined)
+      updateData.estoque_minimo = Number(payload.estoque_minimo)
+    if (payload.area_preparo !== undefined) updateData.area_preparo = payload.area_preparo
+    if (payload.ativo !== undefined) updateData.ativo = payload.ativo
+    if (payload.image_url !== undefined) updateData.image_url = payload.image_url
+
+    const { data, error } = await db
+      .from('produtos')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Erro ao atualizar produto:', error)
+      throw error || new Error('Falha ao atualizar dados do produto.')
+    }
+
+    return {
+      id: data.id,
+      name: data.nome,
+      category: data.categoria,
+      price: Number(data.preco),
+      description: data.descricao || '',
+      unit: data.unidade,
+      stock: Number(data.estoque),
+      minStock: Number(data.estoque_minimo),
+      areaPreparo: data.area_preparo as AreaPreparo,
+      ativo: data.ativo,
+      imageUrl: data.image_url || undefined,
+    }
+  },
+
+  async toggleProdutoAtivo(id: string, currentAtivo: boolean): Promise<boolean> {
+    const newAtivo = !currentAtivo
+    const { error } = await db
+      .from('produtos')
+      .update({ ativo: newAtivo, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Erro ao alterar status do produto:', error)
+      throw error
+    }
+    return newAtivo
   },
 
   async updateProdutoEstoque(
@@ -275,15 +395,23 @@ export const BarService = {
       .update({ status: 'Ocupada', updated_at: new Date().toISOString() })
       .eq('id', comandaId)
 
-    // 4. Prepara fila de cozinha/bar
+    // 4. Prepara fila de cozinha/bar conforme campo area_preparo do produto (ou fallback pela categoria)
     if (itemId) {
-      const area = ['Cervejas', 'Drinks', 'Destilados', 'Refrigerantes'].includes(item.category)
-        ? 'bar'
-        : 'cozinha'
+      let area: AreaPreparo = 'bar'
+      if (item.areaPreparo) {
+        area = item.areaPreparo
+      } else {
+        // Fallback baseado na categoria
+        area = ['Cervejas', 'Drinks', 'Destilados', 'Refrigerantes'].includes(item.category)
+          ? 'bar'
+          : 'cozinha'
+      }
+
       await db.from('fila_cozinha').insert({
         comanda_item_id: itemId,
         area_preparo: area,
         status: 'pendente',
+        observacoes: null,
       })
     }
   },
@@ -644,5 +772,81 @@ export const BarService = {
 
   async cancelFiscalDoc(id: string): Promise<void> {
     await db.from('documentos_fiscais').update({ status: 'Cancelada' }).eq('id', id)
+  },
+
+  // --- FILA DE COZINHA & BAR ---
+  async fetchFilaCozinha(): Promise<FilaCozinhaItem[]> {
+    const { data, error } = await db
+      .from('fila_cozinha')
+      .select(`
+        id,
+        comanda_item_id,
+        area_preparo,
+        status,
+        observacoes,
+        created_at,
+        updated_at,
+        comanda_itens (
+          id,
+          nome_produto,
+          quantidade,
+          preco_unitario,
+          comanda_id,
+          comandas (
+            id,
+            mesa_numero,
+            cliente_nome
+          )
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Erro ao buscar fila da cozinha:', error)
+      throw error
+    }
+
+    return (data || []).map((row: any) => {
+      const item = row.comanda_itens
+      const comanda = item?.comandas
+      return {
+        id: row.id,
+        comandaItemId: row.comanda_item_id,
+        areaPreparo: (row.area_preparo as AreaPreparo) || 'cozinha',
+        status: (row.status as KitchenStatus) || 'pendente',
+        observacoes: row.observacoes || undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        nomeProduto: item?.nome_produto,
+        quantidade: item?.quantidade,
+        precoUnitario: item ? Number(item.preco_unitario) : undefined,
+        mesaNumero: comanda?.mesa_numero,
+        clienteNome: comanda?.cliente_nome,
+        comandaId: item?.comanda_id,
+      }
+    })
+  },
+
+  async updateFilaStatus(id: string, status: KitchenStatus): Promise<void> {
+    const { error } = await db
+      .from('fila_cozinha')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Erro ao atualizar status da fila de cozinha:', error)
+      throw error
+    }
+  },
+
+  async deleteFilaItem(id: string): Promise<void> {
+    const { error } = await db.from('fila_cozinha').delete().eq('id', id)
+    if (error) {
+      console.error('Erro ao remover item da fila:', error)
+      throw error
+    }
   },
 }

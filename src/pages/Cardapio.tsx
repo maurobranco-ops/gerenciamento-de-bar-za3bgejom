@@ -10,13 +10,16 @@ import {
   Scale,
   Sparkles,
   AlertCircle,
+  ChefHat,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { MenuItem, ProductCategory } from '../types/bar'
+import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Settings } from 'lucide-react'
 import { useToast } from '../hooks/use-toast'
 
 const CATEGORIES: ProductCategory[] = [
@@ -29,7 +32,7 @@ const CATEGORIES: ProductCategory[] = [
 ]
 
 export default function Cardapio() {
-  const { menuItems, comandas, addItemToComanda } = useBar()
+  const { menuItems, comandas, addItemToComanda, role } = useBar()
   const { toast } = useToast()
 
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'Todos'>('Todos')
@@ -129,15 +132,42 @@ export default function Cardapio() {
           </p>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar no cardápio..."
-            className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-xs h-10"
-          />
+        {/* Actions & Search */}
+        <div className="flex flex-wrap items-center gap-2">
+          {role === 'Gerente' && (
+            <Link to="/produtos-admin">
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-[#1C1917] border-[#44403C] text-amber-400 hover:text-white text-xs h-10"
+              >
+                <Settings className="w-3.5 h-3.5 mr-1.5" />
+                Gerenciar Preços & Cadastros
+              </Button>
+            </Link>
+          )}
+
+          <Link to="/fila-cozinha">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-[#1C1917] border-[#44403C] text-stone-300 hover:text-white text-xs h-10"
+            >
+              <ChefHat className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+              Ver Fila KDS
+            </Button>
+          </Link>
+
+          {/* Search */}
+          <div className="relative w-full md:w-60">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar no cardápio..."
+              className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-xs h-10"
+            />
+          </div>
         </div>
       </div>
 

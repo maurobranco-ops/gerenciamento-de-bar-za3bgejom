@@ -18,6 +18,8 @@ import {
   X,
   Plus,
   SlidersHorizontal,
+  ChefHat,
+  PackagePlus,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { UserRole } from '../types/bar'
@@ -39,6 +41,7 @@ interface NavItem {
   path: string
   icon: React.ComponentType<{ className?: string }>
   roles: UserRole[]
+  badgeCount?: (ctx: any) => number
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -53,6 +56,21 @@ const NAV_ITEMS: NavItem[] = [
     path: '/comandas',
     icon: ClipboardList,
     roles: ['Garçom', 'Caixa', 'Gerente'],
+  },
+  {
+    title: 'Fila Cozinha & Bar',
+    path: '/fila-cozinha',
+    icon: ChefHat,
+    roles: ['Garçom', 'Caixa', 'Gerente'],
+    badgeCount: (ctx) =>
+      ctx.filaCozinha?.filter((i: any) => i.status === 'pendente' || i.status === 'preparando')
+        .length || 0,
+  },
+  {
+    title: 'Cadastros de Produtos',
+    path: '/produtos-admin',
+    icon: PackagePlus,
+    roles: ['Gerente'],
   },
   {
     title: 'Configurar Mesas',
@@ -93,7 +111,9 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export default function Layout() {
-  const { role, setRole, menuItems, comandas, checkRoleAccess, addItemToComanda } = useBar()
+  const barContext = useBar()
+  const { role, setRole, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } =
+    barContext
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -133,6 +153,9 @@ export default function Layout() {
   // Notifications calculation
   const openComandasCount = comandas.filter(
     (c) => c.status === 'Ocupada' || c.status === 'Aguardando Pagamento',
+  ).length
+  const pendingKitchenCount = filaCozinha.filter(
+    (i) => i.status === 'pendente' || i.status === 'preparando',
   ).length
   const lowStockCount = menuItems.filter((m) => m.stock <= m.minStock).length
 
@@ -229,6 +252,18 @@ export default function Layout() {
                     <p className="font-semibold text-stone-200">Vendas em Andamento</p>
                     <p className="text-stone-400 mt-0.5">
                       {openComandasCount} mesa(s) ativas com consumo em aberto no momento.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-[#1C1917] border border-stone-800 flex items-start gap-3">
+                  <div className="p-1.5 rounded-md bg-blue-500/10 text-blue-400">
+                    <ChefHat className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-semibold text-stone-200">Fila de Cozinha & Bar</p>
+                    <p className="text-stone-400 mt-0.5">
+                      {pendingKitchenCount} pedido(s) aguardando ou em preparo nas praças.
                     </p>
                   </div>
                 </div>
@@ -366,10 +401,17 @@ export default function Layout() {
                   {!collapsed && (
                     <div className="flex items-center justify-between flex-1 truncate">
                       <span className="truncate">{item.title}</span>
-                      {!hasAccess && (
+                      {!hasAccess ? (
                         <span className="text-[10px] text-stone-500 uppercase font-semibold">
                           Bloqueado
                         </span>
+                      ) : (
+                        item.badgeCount &&
+                        item.badgeCount(barContext) > 0 && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-stone-950">
+                            {item.badgeCount(barContext)}
+                          </span>
+                        )
                       )}
                     </div>
                   )}

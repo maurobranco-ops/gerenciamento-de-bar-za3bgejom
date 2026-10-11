@@ -252,13 +252,20 @@ export default function Comandas() {
                 Configurar Mesas
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/fila-cozinha')}
+              className="bg-[#1C1917] hover:bg-[#44403C] border-[#44403C] text-stone-200 text-xs font-semibold h-7"
+            >
+              Fila de Cozinha
+            </Button>
           </div>
           <p className="text-xs text-stone-400 mt-1">
             Clique em uma mesa livre para abrir uma comanda ou em uma ocupada para lançar pedidos e
             fechar conta.
           </p>
         </div>
-
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">

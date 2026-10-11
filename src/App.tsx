@@ -14,6 +14,8 @@ import FluxoCaixa from './pages/FluxoCaixa'
 import DRE from './pages/DRE'
 import Fiscal from './pages/Fiscal'
 import MesasConfig from './pages/MesasConfig'
+import FilaCozinha from './pages/FilaCozinha'
+import ProdutosAdmin from './pages/ProdutosAdmin'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -26,6 +28,8 @@ const App = () => (
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/comandas" element={<Comandas />} />
+            <Route path="/fila-cozinha" element={<FilaCozinha />} />
+            <Route path="/produtos-admin" element={<ProdutosAdmin />} />
             <Route path="/mesas-config" element={<MesasConfig />} />
             <Route path="/cardapio" element={<Cardapio />} />
             <Route path="/estoque" element={<Estoque />} />

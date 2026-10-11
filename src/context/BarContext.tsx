@@ -9,6 +9,9 @@ import {
   CashRegisterDay,
   PaymentMethod,
   TableRecord,
+  FilaCozinhaItem,
+  KitchenStatus,
+  AreaPreparo,
 } from '../types/bar'
 import {
   INITIAL_MENU_ITEMS,
@@ -19,7 +22,7 @@ import {
   INITIAL_CASH_DAYS,
 } from '../data/barData'
 import { useToast } from '../hooks/use-toast'
-import { BarService } from '../services/barService'
+import { BarService, SaveProductPayload } from '../services/barService'
 
 interface BarContextType {
   role: UserRole
@@ -36,11 +39,22 @@ interface BarContextType {
 
   // Dados
   menuItems: MenuItem[]
+  allProducts: MenuItem[]
   comandas: Comanda[]
   cashMovements: CashMovement[]
   stockMovements: StockMovement[]
   fiscalDocs: FiscalDocument[]
   cashDays: CashRegisterDay[]
+  filaCozinha: FilaCozinhaItem[]
+
+  // Produtos (CRUD Gerencial)
+  createProduct: (payload: SaveProductPayload) => Promise<boolean>
+  updateProduct: (id: string, payload: Partial<SaveProductPayload>) => Promise<boolean>
+  toggleProductStatus: (id: string) => Promise<boolean>
+
+  // Fila Cozinha actions
+  fetchFilaCozinha: () => Promise<void>
+  updateFilaStatus: (id: string, status: KitchenStatus) => Promise<void>
 
   // Comanda actions
   openComanda: (tableNumber: number, guestCount: number, clientName?: string) => Promise<void>
@@ -111,11 +125,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Mesas e dados principais
   const [mesas, setMesas] = useState<TableRecord[]>([])
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS)
+  const [allProducts, setAllProducts] = useState<MenuItem[]>([])
   const [comandas, setComandas] = useState<Comanda[]>(INITIAL_TABLES)
   const [cashMovements, setCashMovements] = useState<CashMovement[]>(INITIAL_CASH_MOVEMENTS)
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS)
   const [fiscalDocs, setFiscalDocs] = useState<FiscalDocument[]>(INITIAL_FISCAL_DOCS)
   const [cashDays, setCashDays] = useState<CashRegisterDay[]>(INITIAL_CASH_DAYS)
+  const [filaCozinha, setFilaCozinha] = useState<FilaCozinhaItem[]>([])
 
   // Sync role to localStorage
   useEffect(() => {
@@ -128,29 +144,35 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsSyncing(true)
       const [
         fetchedMesas,
-        fetchedProdutos,
+        fetchedProdutosAtivos,
+        fetchedAllProdutos,
         fetchedComandas,
         fetchedStockMovs,
         fetchedCashDays,
         fetchedCashMovs,
         fetchedFiscalDocs,
+        fetchedFila,
       ] = await Promise.all([
         BarService.fetchMesas().catch(() => []),
-        BarService.fetchProdutos().catch(() => INITIAL_MENU_ITEMS),
+        BarService.fetchProdutos(false).catch(() => INITIAL_MENU_ITEMS),
+        BarService.fetchProdutos(true).catch(() => INITIAL_MENU_ITEMS),
         BarService.fetchComandas().catch(() => INITIAL_TABLES),
         BarService.fetchStockMovements().catch(() => INITIAL_STOCK_MOVEMENTS),
         BarService.fetchCashDays().catch(() => INITIAL_CASH_DAYS),
         BarService.fetchCashMovements().catch(() => INITIAL_CASH_MOVEMENTS),
         BarService.fetchFiscalDocs().catch(() => INITIAL_FISCAL_DOCS),
+        BarService.fetchFilaCozinha().catch(() => []),
       ])
 
       if (fetchedMesas.length > 0) setMesas(fetchedMesas)
-      if (fetchedProdutos.length > 0) setMenuItems(fetchedProdutos)
+      if (fetchedProdutosAtivos.length > 0) setMenuItems(fetchedProdutosAtivos)
+      if (fetchedAllProdutos.length > 0) setAllProducts(fetchedAllProdutos)
       if (fetchedComandas.length > 0) setComandas(fetchedComandas)
       if (fetchedStockMovs.length > 0) setStockMovements(fetchedStockMovs)
       if (fetchedCashDays.length > 0) setCashDays(fetchedCashDays)
       if (fetchedCashMovs.length > 0) setCashMovements(fetchedCashMovs)
       if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
+      setFilaCozinha(fetchedFila)
     } catch (err) {
       console.error('Falha ao sincronizar dados com o Supabase:', err)
       toast({
@@ -167,6 +189,19 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     loadDataFromSupabase()
   }, [loadDataFromSupabase])
+
+  // Polling leve para Fila de Cozinha a cada 8 segundos se o usuário estiver ativo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      BarService.fetchFilaCozinha()
+        .then((items) => {
+          setFilaCozinha(items)
+        })
+        .catch(() => {})
+    }, 8000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole)
@@ -543,6 +578,101 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   // --- ESTOQUE ---
+  // --- CRUD GERENCIAL DE PRODUTOS ---
+  const createProduct = async (payload: SaveProductPayload): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'cadastrar novos produtos')) return false
+
+    try {
+      const newProd = await BarService.createProduto(payload)
+      setAllProducts((prev) => [...prev, newProd].sort((a, b) => a.name.localeCompare(b.name)))
+      if (newProd.ativo !== false) {
+        setMenuItems((prev) => [...prev, newProd].sort((a, b) => a.name.localeCompare(b.name)))
+      }
+      toast({
+        title: 'Produto criado com sucesso!',
+        description: `${newProd.name} salvo no banco por R$ ${newProd.price.toFixed(2)}.`,
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao criar produto',
+        description: err.message || 'Falha ao gravar no Supabase.',
+      })
+      return false
+    }
+  }
+
+  const updateProduct = async (
+    id: string,
+    payload: Partial<SaveProductPayload>,
+  ): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'editar produtos')) return false
+
+    try {
+      const updated = await BarService.updateProduto(id, payload)
+      setAllProducts((prev) => prev.map((p) => (p.id === id ? updated : p)))
+      if (updated.ativo) {
+        setMenuItems((prev) => {
+          const exists = prev.some((p) => p.id === id)
+          if (exists) {
+            return prev.map((p) => (p.id === id ? updated : p))
+          }
+          return [...prev, updated].sort((a, b) => a.name.localeCompare(b.name))
+        })
+      } else {
+        setMenuItems((prev) => prev.filter((p) => p.id !== id))
+      }
+      toast({
+        title: 'Produto atualizado',
+        description: `${updated.name} atualizado no cardápio e no banco de dados.`,
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar produto',
+        description: err.message || 'Falha ao gravar no Supabase.',
+      })
+      return false
+    }
+  }
+
+  const toggleProductStatus = async (id: string): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'ativar/desativar produtos')) return false
+
+    const target = allProducts.find((p) => p.id === id)
+    if (!target) return false
+
+    const currentAtivo = target.ativo !== false
+    try {
+      const newStatus = await BarService.toggleProdutoAtivo(id, currentAtivo)
+      setAllProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: newStatus } : p)))
+      if (newStatus) {
+        setMenuItems((prev) => {
+          const exists = prev.some((p) => p.id === id)
+          if (exists) return prev
+          return [...prev, { ...target, ativo: true }].sort((a, b) => a.name.localeCompare(b.name))
+        })
+      } else {
+        setMenuItems((prev) => prev.filter((p) => p.id !== id))
+      }
+
+      toast({
+        title: newStatus ? 'Produto Ativado' : 'Produto Desativado',
+        description: `${target.name} ${newStatus ? 'agora aparece' : 'não aparece mais'} no cardápio de vendas.`,
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao alterar status',
+        description: err.message || 'Falha na comunicação com o banco.',
+      })
+      return false
+    }
+  }
+
   const updateStockItem = async (
     id: string,
     currentStock: number,
@@ -550,6 +680,14 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     unit: MenuItem['unit'],
   ) => {
     setMenuItems((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          return { ...m, stock: currentStock, minStock, unit }
+        }
+        return m
+      }),
+    )
+    setAllProducts((prev) =>
       prev.map((m) => {
         if (m.id === id) {
           return { ...m, stock: currentStock, minStock, unit }
@@ -570,6 +708,50 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: 'Erro ao salvar estoque',
         description: err.message || 'Falha ao atualizar produto.',
       })
+    }
+  }
+
+  // --- FILA DE COZINHA & BAR ---
+  const fetchFilaCozinha = async () => {
+    try {
+      const items = await BarService.fetchFilaCozinha()
+      setFilaCozinha(items)
+    } catch (err) {
+      console.error('Erro ao atualizar fila de cozinha:', err)
+    }
+  }
+
+  const updateFilaStatus = async (id: string, status: KitchenStatus) => {
+    // Otimista
+    setFilaCozinha((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status, updatedAt: new Date().toISOString() } : item,
+      ),
+    )
+
+    try {
+      await BarService.updateFilaStatus(id, status)
+      const label =
+        status === 'preparando'
+          ? 'Em preparo'
+          : status === 'pronto'
+            ? 'Pronto para servir'
+            : status === 'entregue'
+              ? 'Entregue na mesa'
+              : 'Pendente'
+      toast({
+        title: `Pedido marcado como "${label}"`,
+        description: 'Status sincronizado na fila de bar/cozinha.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao atualizar status da fila:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar status',
+        description: err.message || 'Falha na gravação.',
+      })
+      // Rollback
+      fetchFilaCozinha()
     }
   }
 
@@ -768,6 +950,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         issueFiscalDoc,
         cancelFiscalDoc,
         checkRoleAccess,
+        allProducts,
+        createProduct,
+        updateProduct,
+        toggleProductStatus,
+        filaCozinha,
+        fetchFilaCozinha,
+        updateFilaStatus,
       }}
     >
       {children}
