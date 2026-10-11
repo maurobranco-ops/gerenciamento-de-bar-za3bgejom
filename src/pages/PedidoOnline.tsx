@@ -76,16 +76,32 @@ export default function PedidoOnline() {
   const [pixModalOpen, setPixModalOpen] = useState(false)
   const [pixStatus, setPixStatus] = useState<'pending' | 'checking' | 'paid'>('pending')
 
-  // Carrega cardápio público ativo do banco
+  const [deliveryFee, setDeliveryFee] = useState<number>(7.5)
+
+  // Carrega cardápio público ativo do banco e taxa de entrega das configurações
   useEffect(() => {
     const fetchMenu = async () => {
       try {
         setLoading(true)
-        const { data, error } = await supabase
-          .from('produtos')
-          .select('*')
-          .eq('ativo', true)
-          .order('categoria', { ascending: true })
+        const [prodRes, configRes] = await Promise.all([
+          supabase
+            .from('produtos')
+            .select('*')
+            .eq('ativo', true)
+            .order('categoria', { ascending: true }),
+          (supabase as any)
+            .from('configuracoes_bar')
+            .select('taxa_entrega_delivery')
+            .eq('id', 'principal')
+            .maybeSingle(),
+        ])
+
+        if (configRes.data && configRes.data.taxa_entrega_delivery !== undefined) {
+          setDeliveryFee(Number(configRes.data.taxa_entrega_delivery))
+        }
+
+        const data = prodRes.data
+        const error = prodRes.error
 
         if (!error && data) {
           const mapped: MenuItem[] = data.map((p: any) => ({
@@ -126,7 +142,9 @@ export default function PedidoOnline() {
   })
 
   // Totais do carrinho
-  const cartTotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+  const cartSubtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+  const effectiveDeliveryFee = isDelivery ? deliveryFee : 0
+  const cartTotal = cartSubtotal + effectiveDeliveryFee
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0)
 
   // Adicionar item direto ou abrir personalização
@@ -618,11 +636,27 @@ export default function PedidoOnline() {
             </div>
 
             {/* Total */}
-            <div className="p-4 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-between">
-              <span className="font-semibold text-xs text-stone-300">Total do Pedido:</span>
-              <span className="text-xl font-black text-amber-400 tabular-nums">
-                R$ {cartTotal.toFixed(2)}
-              </span>
+            <div className="p-4 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2 text-xs">
+              <div className="flex items-center justify-between text-stone-400">
+                <span>Subtotal Itens:</span>
+                <span className="font-bold tabular-nums text-stone-200">
+                  R$ {cartSubtotal.toFixed(2)}
+                </span>
+              </div>
+              {isDelivery && (
+                <div className="flex items-center justify-between text-stone-400">
+                  <span>Taxa de Entrega:</span>
+                  <span className="font-bold tabular-nums text-amber-400">
+                    + R$ {deliveryFee.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-2 border-t border-[#44403C] font-black text-base">
+                <span className="text-stone-100">Total do Pedido:</span>
+                <span className="text-xl text-amber-400 tabular-nums">
+                  R$ {cartTotal.toFixed(2)}
+                </span>
+              </div>
             </div>
 
             {/* Botão de Enviar */}

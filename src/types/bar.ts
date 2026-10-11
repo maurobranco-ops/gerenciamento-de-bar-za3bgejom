@@ -129,3 +129,20 @@ export interface CashRegisterDay {
   closedAt?: string
   closedBy?: string
 }
+
+export interface BarSettings {
+  id: string
+  taxaServicoPadrao: number // ex: 10
+  taxaEntregaDelivery: number // ex: 7.50
+  razaoSocial: string
+  nomeFantasia: string
+  cnpj: string
+  inscricaoEstadual: string
+  enderecoCompleto: string
+  telefone: string
+  impressoraFiscalNome: string
+  impressoraFiscalAtiva: boolean
+  impressoraCozinhaNome: string
+  impressoraCozinhaAtiva: boolean
+  updatedAt?: string
+}

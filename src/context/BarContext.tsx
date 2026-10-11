@@ -12,6 +12,7 @@ import {
   FilaCozinhaItem,
   KitchenStatus,
   AreaPreparo,
+  BarSettings,
 } from '../types/bar'
 import {
   INITIAL_MENU_ITEMS,
@@ -22,8 +23,10 @@ import {
   INITIAL_CASH_DAYS,
 } from '../data/barData'
 import { useToast } from '../hooks/use-toast'
-import { BarService, SaveProductPayload } from '../services/barService'
+import { BarService, SaveProductPayload, DEFAULT_BAR_SETTINGS } from '../services/barService'
 import { useAuth } from '../hooks/use-auth'
+import { SoundEffects } from '../lib/soundEffects'
+import { printKitchenTicket } from '../lib/thermalPrinter'
 
 interface BarContextType {
   role: UserRole
@@ -47,6 +50,17 @@ interface BarContextType {
   fiscalDocs: FiscalDocument[]
   cashDays: CashRegisterDay[]
   filaCozinha: FilaCozinhaItem[]
+
+  // Configurações do Bar
+  settings: BarSettings
+  updateSettings: (newSettings: Partial<BarSettings>) => Promise<boolean>
+
+  // Notificações e Sons
+  soundEnabled: boolean
+  toggleSound: () => void
+  unreadOnlineOrdersCount: number
+  clearUnreadOnlineOrders: () => void
+  lastOnlineOrderId: string | null
 
   // Produtos (CRUD Gerencial)
   createProduct: (payload: SaveProductPayload) => Promise<boolean>
@@ -140,6 +154,28 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [fiscalDocs, setFiscalDocs] = useState<FiscalDocument[]>(INITIAL_FISCAL_DOCS)
   const [cashDays, setCashDays] = useState<CashRegisterDay[]>(INITIAL_CASH_DAYS)
   const [filaCozinha, setFilaCozinha] = useState<FilaCozinhaItem[]>([])
+  const [settings, setSettings] = useState<BarSettings>(DEFAULT_BAR_SETTINGS)
+
+  // Notificações sonoras e badge
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('rachide_bar_sound_enabled')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [unreadOnlineOrdersCount, setUnreadOnlineOrdersCount] = useState<number>(0)
+  const [lastOnlineOrderId, setLastOnlineOrderId] = useState<string | null>(null)
+
+  // Sync sound to localStorage
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev
+      localStorage.setItem('rachide_bar_sound_enabled', String(next))
+      return next
+    })
+  }
+
+  const clearUnreadOnlineOrders = () => {
+    setUnreadOnlineOrdersCount(0)
+  }
 
   // Sync role to localStorage
   useEffect(() => {
@@ -160,6 +196,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchedCashMovs,
         fetchedFiscalDocs,
         fetchedFila,
+        fetchedConfig,
       ] = await Promise.all([
         BarService.fetchMesas().catch(() => []),
         BarService.fetchProdutos(false).catch(() => INITIAL_MENU_ITEMS),
@@ -170,6 +207,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         BarService.fetchCashMovements().catch(() => INITIAL_CASH_MOVEMENTS),
         BarService.fetchFiscalDocs().catch(() => INITIAL_FISCAL_DOCS),
         BarService.fetchFilaCozinha().catch(() => []),
+        BarService.fetchConfiguracoes().catch(() => DEFAULT_BAR_SETTINGS),
       ])
 
       if (fetchedMesas.length > 0) setMesas(fetchedMesas)
@@ -181,6 +219,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fetchedCashMovs.length > 0) setCashMovements(fetchedCashMovs)
       if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
       setFilaCozinha(fetchedFila)
+      if (fetchedConfig) setSettings(fetchedConfig)
     } catch (err) {
       console.error('Falha ao sincronizar dados com o Supabase:', err)
       toast({
@@ -203,13 +242,66 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const interval = setInterval(() => {
       BarService.fetchFilaCozinha()
         .then((items) => {
-          setFilaCozinha(items)
+          setFilaCozinha((prev) => {
+            // Se prev for vazio no primeiro mount, não dispara alerta falso de "novo"
+            if (prev.length === 0) return items
+
+            const prevIds = new Set(prev.map((p) => p.id))
+            const newOnlineItems = items.filter(
+              (item) => item.origemOnline && !prevIds.has(item.id) && item.status === 'pendente',
+            )
+
+            if (newOnlineItems.length > 0) {
+              setUnreadOnlineOrdersCount((c) => c + newOnlineItems.length)
+              setLastOnlineOrderId(newOnlineItems[0].id)
+
+              // Dispara som se ativado
+              const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
+              const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true
+              if (isSoundOn) {
+                SoundEffects.playOrderAlert()
+              }
+
+              // Disparo de impressão automática caso esta estação esteja configurada como impressora ativa
+              const autoPrintStation =
+                localStorage.getItem('rachide_bar_autoprint_enabled') === 'true'
+              if (autoPrintStation) {
+                newOnlineItems.forEach((it) => {
+                  printKitchenTicket({ item: it, settings })
+                })
+              }
+            }
+
+            return items
+          })
         })
         .catch(() => {})
     }, 8000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [settings])
+
+  // Atualizar configurações do bar
+  const updateSettings = async (newSettings: Partial<BarSettings>): Promise<boolean> => {
+    if (!checkRoleAccess(['Gerente'], 'alterar configurações gerais do bar')) return false
+
+    try {
+      const updated = await BarService.updateConfiguracoes(newSettings)
+      setSettings(updated)
+      toast({
+        title: 'Configurações salvas no Supabase!',
+        description: 'Taxas, dados fiscais e impressoras atualizados com sucesso.',
+      })
+      return true
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar configurações',
+        description: err.message || 'Falha na persistência no Supabase.',
+      })
+      return false
+    }
+  }
 
   const setRole = (newRole: UserRole) => {
     setRoleOverride(newRole)
@@ -965,6 +1057,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         filaCozinha,
         fetchFilaCozinha,
         updateFilaStatus,
+        settings,
+        updateSettings,
+        soundEnabled,
+        toggleSound,
+        unreadOnlineOrdersCount,
+        clearUnreadOnlineOrders,
+        lastOnlineOrderId,
       }}
     >
       {children}

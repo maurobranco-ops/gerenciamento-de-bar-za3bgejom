@@ -23,7 +23,7 @@ import { Progress } from '../components/ui/progress'
 import { useToast } from '../hooks/use-toast'
 
 export default function Fiscal() {
-  const { fiscalDocs, issueFiscalDoc, cancelFiscalDoc, comandas } = useBar()
+  const { fiscalDocs, issueFiscalDoc, cancelFiscalDoc, comandas, settings } = useBar()
   const { toast } = useToast()
 
   // Form states
@@ -86,9 +86,61 @@ export default function Fiscal() {
   }
 
   const handlePrintDoc = (doc: FiscalDocument) => {
+    // Layout térmico simulado DANFE
+    const printWindow = window.open('', '_blank', 'width=380,height=600')
+    if (printWindow) {
+      printWindow.document.open()
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>DANFE - ${doc.number}</title>
+          <style>
+            @page { size: 80mm auto; margin: 3mm; }
+            body { font-family: 'Courier New', monospace; font-size: 11px; width: 74mm; margin: 0 auto; line-height: 1.3; }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .hr { border-top: 1px dashed #000; margin: 5px 0; }
+            .double-hr { border-top: 2px solid #000; margin: 5px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="center bold" style="font-size: 14px;">${settings?.nomeFantasia || 'RACHIDE BAR'}</div>
+          <div class="center" style="font-size: 9px;">${settings?.razaoSocial || 'Rachide Bar & Petiscaria EIRELI'}</div>
+          <div class="center" style="font-size: 9px;">CNPJ: ${settings?.cnpj || '14.293.842/0001-84'} • IE: ${settings?.inscricaoEstadual || '114.293.842.110'}</div>
+          <div class="center" style="font-size: 9px;">${settings?.enderecoCompleto || 'Rua dos Boêmios, 142 - SP'}</div>
+          <div class="double-hr"></div>
+          <div class="center bold">DANFE ${doc.type} - DOCUMENTO AUXILIAR</div>
+          <div class="center" style="font-size: 9px;">(Ambiente de Homologação / Simulado)</div>
+          <div class="hr"></div>
+          <div><strong>Doc:</strong> ${doc.number} &bull; <strong>Série:</strong> ${doc.serie}</div>
+          <div><strong>Emissão:</strong> ${doc.issuedAt.replace('T', ' ').substring(0, 16)}</div>
+          <div><strong>Destinatário:</strong> ${doc.clientName || 'Consumidor Final'}</div>
+          ${doc.docNumber ? `<div><strong>CPF/CNPJ:</strong> ${doc.docNumber}</div>` : ''}
+          <div class="hr"></div>
+          <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:bold;">
+            <span>VALOR TOTAL:</span>
+            <span>R$ ${doc.value.toFixed(2)}</span>
+          </div>
+          <div class="hr"></div>
+          <div style="font-size: 8px; word-break: break-all;">
+            <strong>Chave de Acesso:</strong><br/>
+            ${doc.accessKey || '35250314293842000184650010000000000000000000'}
+          </div>
+          <div class="center" style="margin-top: 10px; font-size: 9px;">
+            <div>Protocolo SEFAZ: 135250009482012</div>
+            <div>Impressora: ${settings?.impressoraFiscalNome || 'Epson TM-T20X'}</div>
+          </div>
+          <script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 600); };</script>
+        </body>
+        </html>
+      `)
+      printWindow.document.close()
+    }
+
     toast({
       title: `Documento ${doc.number} Enviado para Impressão`,
-      description: `DANFE em formato cupom térmico (58mm/80mm) emitido com sucesso via simulador.`,
+      description: `DANFE 80mm gerado com dados cadastrais de ${settings?.nomeFantasia || 'Rachide Bar'}.`,
     })
   }
 
@@ -122,9 +174,11 @@ export default function Fiscal() {
             Geração de NFC-e e NF-e com DANFE, cancelamento e monitoramento de autorizações SEFAZ.
           </p>
         </div>
-        <Badge className="bg-stone-800 text-stone-300 border-stone-700 text-xs px-3 py-1">
-          Série 001 • Homologação Ativa
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-stone-800 text-stone-300 border-stone-700 text-xs px-3 py-1">
+            Série 001 • {settings?.nomeFantasia || 'Rachide Bar'}
+          </Badge>
+        </div>{' '}
       </div>
 
       {/* Issuance Card + Totals Card Grid */}

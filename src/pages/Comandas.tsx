@@ -20,15 +20,15 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
-import { Comanda, MenuItem, PaymentMethod, TableStatus } from '../types/bar'
+import { TableStatus, Comanda, MenuItem, PaymentMethod } from '../types/bar'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Label } from '../components/ui/label'
 import { Switch } from '../components/ui/switch'
 import { useToast } from '../hooks/use-toast'
-
+import { printComandaAccount } from '../lib/thermalPrinter'
 export default function Comandas() {
   const {
     role,
@@ -39,6 +39,7 @@ export default function Comandas() {
     updateComandaItemQuantity,
     toggleServiceFee,
     closeAndPayComanda,
+    settings,
   } = useBar()
 
   const { toast } = useToast()
@@ -148,7 +149,9 @@ export default function Comandas() {
     }
   }
 
-  // Calculate Comanda totals
+  // Calculate Comanda totals usando taxa de serviço dinâmica configurada no banco (settings)
+  const taxaPercentual = settings?.taxaServicoPadrao ?? 10
+
   const computeSubtotal = (cmd: Comanda | null) => {
     if (!cmd) return 0
     return cmd.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -156,7 +159,7 @@ export default function Comandas() {
 
   const computeServiceFee = (cmd: Comanda | null) => {
     if (!cmd || !cmd.includeServiceFee) return 0
-    return computeSubtotal(cmd) * 0.1
+    return computeSubtotal(cmd) * (taxaPercentual / 100)
   }
 
   const computeTotal = (cmd: Comanda | null) => {
@@ -574,7 +577,7 @@ export default function Comandas() {
                       className="data-[state=checked]:bg-emerald-500"
                     />
                     <Label className="text-xs text-stone-300 cursor-pointer">
-                      Incluir 10% de Serviço (Garçom)
+                      Incluir {taxaPercentual}% de Serviço (Garçom)
                     </Label>
                   </div>
                   <span className="font-bold tabular-nums text-xs text-emerald-400">
@@ -598,14 +601,33 @@ export default function Comandas() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      toast({
-                        title: `Conta da Mesa ${currentComanda.tableNumber} Impressa`,
-                        description: `Comprovante não fiscal enviado para a impressora do caixa.`,
+                      const sub = computeSubtotal(currentComanda)
+                      const fee = computeServiceFee(currentComanda)
+                      const tot = computeTotal(currentComanda)
+                      const ok = printComandaAccount({
+                        comanda: currentComanda,
+                        settings,
+                        subtotal: sub,
+                        taxaServico: fee,
+                        taxaPercentual,
+                        total: tot,
                       })
+                      if (ok) {
+                        toast({
+                          title: `Conta da Mesa ${currentComanda.tableNumber} Impressa`,
+                          description: `Comprovante 80mm enviado para a impressora térmica.`,
+                        })
+                      } else {
+                        toast({
+                          variant: 'destructive',
+                          title: 'Popup bloqueado',
+                          description: 'Permita popups para visualizar a impressão da conta.',
+                        })
+                      }
                     }}
                     className="bg-[#1C1917] border-[#44403C] text-stone-300 hover:text-white text-xs"
                   >
-                    <Printer className="w-3.5 h-3.5 mr-1.5 text-stone-400" />
+                    <Printer className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
                     Imprimir Conta
                   </Button>
 
@@ -673,7 +695,7 @@ export default function Comandas() {
                       onCheckedChange={() => toggleServiceFee(activePayingComanda.tableNumber)}
                       className="data-[state=checked]:bg-emerald-500"
                     />
-                    <span className="text-xs text-stone-300">10% Serviço</span>
+                    <span className="text-xs text-stone-300">{taxaPercentual}% Serviço</span>
                   </div>
                   <div className="text-[11px] text-emerald-400 tabular-nums mt-1 font-semibold">
                     {activePayingComanda.includeServiceFee

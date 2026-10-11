@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   ChefHat,
   PackagePlus,
+  Settings,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { useAuth } from '../hooks/use-auth'
@@ -116,6 +117,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: ReceiptText,
     roles: ['Gerente'],
   },
+  {
+    title: 'Configurações',
+    path: '/configuracoes',
+    icon: Settings,
+    roles: ['Gerente'],
+  },
 ]
 
 export default function Layout() {
@@ -160,6 +167,8 @@ export default function Layout() {
     : []
 
   // Notifications calculation
+  const { unreadOnlineOrdersCount } = barContext
+
   const openComandasCount = comandas.filter(
     (c) => c.status === 'Ocupada' || c.status === 'Aguardando Pagamento',
   ).length
@@ -167,6 +176,16 @@ export default function Layout() {
     (i) => i.status === 'pendente' || i.status === 'preparando',
   ).length
   const lowStockCount = menuItems.filter((m) => m.stock <= m.minStock).length
+
+  // Atualizar título da aba do navegador dinamicamente com pedidos pendentes
+  React.useEffect(() => {
+    const totalPending = pendingKitchenCount
+    if (totalPending > 0) {
+      document.title = `(${totalPending}) Rachide Bar • Fila Ativa`
+    } else {
+      document.title = 'Rachide Bar — Gestão Gastronômica'
+    }
+  }, [pendingKitchenCount])
 
   // Handle protected route click
   const handleNavClick = (e: React.MouseEvent, item: NavItem) => {
@@ -233,26 +252,62 @@ export default function Layout() {
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
             <DropdownMenuTrigger asChild>
               <button
-                className="relative p-2 rounded-lg bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] text-stone-300 transition-colors"
+                className={`relative p-2 rounded-lg bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] text-stone-300 transition-colors ${
+                  unreadOnlineOrdersCount > 0 ? 'border-amber-500 ring-2 ring-amber-500/30' : ''
+                }`}
                 title="Notificações"
               >
-                <Bell className="w-4 h-4 text-amber-500" />
-                {(openComandasCount > 0 || lowStockCount > 0) && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-stone-950 animate-pulse-subtle">
-                    {lowStockCount + (openComandasCount > 0 ? 1 : 0)}
+                <Bell
+                  className={`w-4 h-4 ${unreadOnlineOrdersCount > 0 ? 'text-amber-400 animate-bounce' : 'text-amber-500'}`}
+                />
+                {(openComandasCount > 0 || lowStockCount > 0 || unreadOnlineOrdersCount > 0) && (
+                  <span
+                    className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[10px] font-bold text-stone-950 ${
+                      unreadOnlineOrdersCount > 0 ? 'bg-amber-400 animate-pulse' : 'bg-amber-500'
+                    }`}
+                  >
+                    {unreadOnlineOrdersCount > 0
+                      ? unreadOnlineOrdersCount
+                      : lowStockCount + (openComandasCount > 0 ? 1 : 0)}
                   </span>
                 )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-72 bg-[#292524] border-[#44403C] text-stone-100 p-2"
+              className="w-80 bg-[#292524] border-[#44403C] text-stone-100 p-2"
             >
-              <DropdownMenuLabel className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-                Central de Notificações
+              <DropdownMenuLabel className="text-xs font-semibold text-stone-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Central de Notificações</span>
+                {unreadOnlineOrdersCount > 0 && (
+                  <Badge className="bg-amber-500 text-stone-950 text-[10px] font-bold">
+                    {unreadOnlineOrdersCount} on-line
+                  </Badge>
+                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-[#44403C]" />
               <div className="space-y-2 py-2">
+                {unreadOnlineOrdersCount > 0 && (
+                  <div
+                    onClick={() => {
+                      barContext.clearUnreadOnlineOrders()
+                      navigate('/fila-cozinha')
+                      setNotifOpen(false)
+                    }}
+                    className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-start gap-3 cursor-pointer hover:bg-amber-500/25 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-md bg-amber-500 text-stone-950">
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <div className="text-xs">
+                      <p className="font-bold text-amber-300">Novo Pedido On-line!</p>
+                      <p className="text-stone-300 mt-0.5">
+                        {unreadOnlineOrdersCount} novo(s) pedido(s) via QR Code na fila de preparo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-2.5 rounded-lg bg-[#1C1917] border border-stone-800 flex items-start gap-3">
                   <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-500">
                     <ClipboardList className="w-4 h-4" />
@@ -388,7 +443,7 @@ export default function Layout() {
                   variant="outline"
                   className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
                 >
-                  v1.1.0
+                  v1.2.0
                 </Badge>
               </div>
             ) : (
@@ -503,7 +558,9 @@ export default function Layout() {
         }`}
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
-          <span>Rachide Bar v1.1.0 — Gestão Gastronômica, Pedidos On-line & Segurança RLS</span>
+          <span>
+            Rachide Bar v1.2.0 — Gestão Gastronômica, KDS Térmico & Configurações Supabase
+          </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             Supabase Conectado & Operante com Auth por Perfil

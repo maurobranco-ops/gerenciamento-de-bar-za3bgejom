@@ -13,7 +13,24 @@ import {
   FilaCozinhaItem,
   KitchenStatus,
   AreaPreparo,
+  BarSettings,
 } from '../types/bar'
+
+export const DEFAULT_BAR_SETTINGS: BarSettings = {
+  id: 'principal',
+  taxaServicoPadrao: 10,
+  taxaEntregaDelivery: 7.5,
+  razaoSocial: 'Rachide Bar & Petiscaria EIRELI',
+  nomeFantasia: 'Rachide Bar',
+  cnpj: '14.293.842/0001-84',
+  inscricaoEstadual: '114.293.842.110',
+  enderecoCompleto: 'Rua dos Boêmios, 142 - Vila Madalena, São Paulo - SP',
+  telefone: '(11) 3849-2041',
+  impressoraFiscalNome: 'Epson TM-T20X (Térmica 80mm)',
+  impressoraFiscalAtiva: true,
+  impressoraCozinhaNome: 'Bematech MP-4200 TH (Cozinha)',
+  impressoraCozinhaAtiva: true,
+}
 
 // Bypass de tipo estático enquanto os types do Supabase gerados automaticamente não refletem a nova migração
 const db = supabase as any
@@ -870,5 +887,96 @@ export const BarService = {
     }
 
     return data
+  },
+
+  // --- CONFIGURAÇÕES DO BAR ---
+  async fetchConfiguracoes(): Promise<BarSettings> {
+    const { data, error } = await db
+      .from('configuracoes_bar')
+      .select('*')
+      .eq('id', 'principal')
+      .maybeSingle()
+
+    if (error) {
+      console.error('Erro ao buscar configurações do bar:', error)
+      return DEFAULT_BAR_SETTINGS
+    }
+
+    if (!data) return DEFAULT_BAR_SETTINGS
+
+    return {
+      id: data.id,
+      taxaServicoPadrao: Number(data.taxa_servico_padrao ?? 10),
+      taxaEntregaDelivery: Number(data.taxa_entrega_delivery ?? 7.5),
+      razaoSocial: data.razao_social || DEFAULT_BAR_SETTINGS.razaoSocial,
+      nomeFantasia: data.nome_fantasia || DEFAULT_BAR_SETTINGS.nomeFantasia,
+      cnpj: data.cnpj || DEFAULT_BAR_SETTINGS.cnpj,
+      inscricaoEstadual: data.inscricao_estadual || DEFAULT_BAR_SETTINGS.inscricaoEstadual,
+      enderecoCompleto: data.endereco_completo || DEFAULT_BAR_SETTINGS.enderecoCompleto,
+      telefone: data.telefone || DEFAULT_BAR_SETTINGS.telefone,
+      impressoraFiscalNome:
+        data.impressora_fiscal_nome || DEFAULT_BAR_SETTINGS.impressoraFiscalNome,
+      impressoraFiscalAtiva: data.impressora_fiscal_ativa ?? true,
+      impressoraCozinhaNome:
+        data.impressora_cozinha_nome || DEFAULT_BAR_SETTINGS.impressoraCozinhaNome,
+      impressoraCozinhaAtiva: data.impressora_cozinha_ativa ?? true,
+      updatedAt: data.updated_at,
+    }
+  },
+
+  async updateConfiguracoes(settings: Partial<BarSettings>): Promise<BarSettings> {
+    const payload: any = {
+      updated_at: new Date().toISOString(),
+    }
+    if (settings.taxaServicoPadrao !== undefined) {
+      payload.taxa_servico_padrao = Number(settings.taxaServicoPadrao)
+    }
+    if (settings.taxaEntregaDelivery !== undefined) {
+      payload.taxa_entrega_delivery = Number(settings.taxaEntregaDelivery)
+    }
+    if (settings.razaoSocial !== undefined) payload.razao_social = settings.razaoSocial
+    if (settings.nomeFantasia !== undefined) payload.nome_fantasia = settings.nomeFantasia
+    if (settings.cnpj !== undefined) payload.cnpj = settings.cnpj
+    if (settings.inscricaoEstadual !== undefined)
+      payload.inscricao_estadual = settings.inscricaoEstadual
+    if (settings.enderecoCompleto !== undefined)
+      payload.endereco_completo = settings.enderecoCompleto
+    if (settings.telefone !== undefined) payload.telefone = settings.telefone
+    if (settings.impressoraFiscalNome !== undefined)
+      payload.impressora_fiscal_nome = settings.impressoraFiscalNome
+    if (settings.impressoraFiscalAtiva !== undefined)
+      payload.impressora_fiscal_ativa = settings.impressoraFiscalAtiva
+    if (settings.impressoraCozinhaNome !== undefined)
+      payload.impressora_cozinha_nome = settings.impressoraCozinhaNome
+    if (settings.impressoraCozinhaAtiva !== undefined)
+      payload.impressora_cozinha_ativa = settings.impressoraCozinhaAtiva
+
+    const { data, error } = await db
+      .from('configuracoes_bar')
+      .upsert({ id: 'principal', ...payload })
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Erro ao atualizar configurações:', error)
+      throw error || new Error('Não foi possível salvar as configurações.')
+    }
+
+    return {
+      id: data.id,
+      taxaServicoPadrao: Number(data.taxa_servico_padrao),
+      taxaEntregaDelivery: Number(data.taxa_entrega_delivery),
+      razaoSocial: data.razao_social,
+      nomeFantasia: data.nome_fantasia,
+      cnpj: data.cnpj,
+      inscricaoEstadual: data.inscricao_estadual,
+      enderecoCompleto: data.endereco_completo,
+      telefone: data.telefone,
+      impressoraFiscalNome: data.impressora_fiscal_nome,
+      impressoraFiscalAtiva: data.impressora_fiscal_ativa,
+      impressoraCozinhaNome: data.impressora_cozinha_nome,
+      impressoraCozinhaAtiva: data.impressora_cozinha_ativa,
+      updatedAt: data.updated_at,
+    }
   },
 }

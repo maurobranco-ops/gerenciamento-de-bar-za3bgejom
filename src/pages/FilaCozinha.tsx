@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   ChefHat,
   Beer,
@@ -12,11 +12,20 @@ import {
   CheckCheck,
   UtensilsCrossed,
   Sparkles,
+  Printer,
+  Volume2,
+  VolumeX,
+  Radio,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { AreaPreparo, KitchenStatus, FilaCozinhaItem } from '../types/bar'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
+import { Switch } from '../components/ui/switch'
+import { Label } from '../components/ui/label'
+import { printKitchenTicket } from '../lib/thermalPrinter'
+import { SoundEffects } from '../lib/soundEffects'
+import { toast } from '../hooks/use-toast'
 
 const STATUS_COLUMNS: {
   key: KitchenStatus
@@ -56,10 +65,63 @@ const STATUS_COLUMNS: {
 ]
 
 export default function FilaCozinha() {
-  const { filaCozinha, fetchFilaCozinha, updateFilaStatus } = useBar()
+  const {
+    filaCozinha,
+    fetchFilaCozinha,
+    updateFilaStatus,
+    settings,
+    soundEnabled,
+    toggleSound,
+    lastOnlineOrderId,
+    clearUnreadOnlineOrders,
+  } = useBar()
+
   const [selectedArea, setSelectedArea] = useState<AreaPreparo | 'todos'>('todos')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showDelivered, setShowDelivered] = useState(false)
+
+  // Estação de impressão automática (toggle local por dispositivo)
+  const [autoPrintStation, setAutoPrintStation] = useState<boolean>(() => {
+    return localStorage.getItem('rachide_bar_autoprint_enabled') === 'true'
+  })
+
+  // Ao entrar na tela de fila, limpa contador de não lidos
+  useEffect(() => {
+    clearUnreadOnlineOrders()
+  }, [clearUnreadOnlineOrders])
+
+  const handleToggleAutoPrint = (enabled: boolean) => {
+    setAutoPrintStation(enabled)
+    localStorage.setItem('rachide_bar_autoprint_enabled', String(enabled))
+    if (enabled) {
+      toast({
+        title: 'Estação de Impressão de Cozinha Ativada!',
+        description:
+          'Novos pedidos recebidos abrirão a janela de impressão térmica automaticamente (requer permissão do navegador).',
+      })
+    } else {
+      toast({
+        title: 'Impressão Automática Desativada',
+        description: 'Os pedidos deverão ser impressos manualmente pelo botão Imprimir.',
+      })
+    }
+  }
+
+  const handleManualPrint = (item: FilaCozinhaItem) => {
+    const success = printKitchenTicket({ item, settings })
+    if (success) {
+      toast({
+        title: `Ticket impresso: Mesa ${item.mesaNumero}`,
+        description: `Comanda de ${item.nomeProduto} enviada para o spooler de impressão térmica.`,
+      })
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueador de popup ativo',
+        description: 'Permita popups neste navegador para abrir o layout de impressão da comanda.',
+      })
+    }
+  }
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true)
@@ -158,8 +220,55 @@ export default function FilaCozinha() {
           </div>
         </div>
 
-        {/* Controles de filtro e refresh */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Controles de filtro, som, auto-print e refresh */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Toggle de Som */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              toggleSound()
+              if (!soundEnabled) {
+                // Teste som imediato
+                SoundEffects.playOrderAlert()
+              }
+            }}
+            className={`text-xs h-9 bg-[#1C1917] border-[#44403C] ${
+              soundEnabled ? 'text-amber-400 border-amber-500/40' : 'text-stone-400'
+            }`}
+            title={soundEnabled ? 'Silenciar alertas de pedidos' : 'Ativar alertas sonoros'}
+          >
+            {soundEnabled ? (
+              <>
+                <Volume2 className="w-3.5 h-3.5 mr-1.5 text-amber-500" /> Som Ativo
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-3.5 h-3.5 mr-1.5" /> Mudo
+              </>
+            )}
+          </Button>
+
+          {/* Toggle de Estação Impressora de Cozinha */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1C1917] border border-[#44403C]">
+            <Switch
+              id="auto-print-switch"
+              checked={autoPrintStation}
+              onCheckedChange={handleToggleAutoPrint}
+              className="data-[state=checked]:bg-emerald-500"
+            />
+            <Label
+              htmlFor="auto-print-switch"
+              className="text-xs font-semibold text-stone-300 cursor-pointer flex items-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5 text-stone-400" />
+              <span>Impressora Auto</span>
+              {autoPrintStation && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </Label>
+          </div>
+
           {/* Seletor de Praça / Área */}
           <div className="flex items-center bg-[#1C1917] p-1 rounded-xl border border-[#44403C]">
             <button
@@ -224,6 +333,27 @@ export default function FilaCozinha() {
             />
             Atualizar
           </Button>
+        </div>
+      </div>
+
+      {/* Banner Informativo de Impressora de Cozinha caso ativa */}
+      <div className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-between text-xs text-stone-300">
+        <div className="flex items-center gap-2">
+          <Radio className="w-4 h-4 text-amber-500 flex-shrink-0 animate-pulse" />
+          <span>
+            <strong>Estação de KDS / Cozinha:</strong>{' '}
+            {autoPrintStation ? (
+              <span className="text-emerald-400 font-bold">
+                Impressão automática 80mm ATIVA para novos pedidos (Dispositivo conectado:{' '}
+                {settings?.impressoraCozinhaNome || 'Bematech MP-4200'}).
+              </span>
+            ) : (
+              <span className="text-stone-400">
+                Impressão manual ativada. Ative o toggle &quot;Impressora Auto&quot; nesta máquina
+                para disparar impressão automática na cozinha/bar.
+              </span>
+            )}
+          </span>
         </div>
       </div>
 
@@ -308,11 +438,16 @@ export default function FilaCozinha() {
                   itemsInCol.map((item) => {
                     const nextStatus = getNextStatus(item.status)
                     const nextLabel = getNextStatusActionLabel(item.status)
+                    const isRecentPulse = lastOnlineOrderId === item.id
 
                     return (
                       <div
                         key={item.id}
-                        className="p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] hover:border-amber-500/40 transition-all flex flex-col justify-between space-y-3 shadow-sm group"
+                        className={`p-3.5 rounded-xl bg-[#1C1917] border transition-all flex flex-col justify-between space-y-3 shadow-sm group ${
+                          isRecentPulse
+                            ? 'border-amber-500 ring-2 ring-amber-500/50 animate-pulse'
+                            : 'border-[#44403C] hover:border-amber-500/40'
+                        }`}
                       >
                         {/* Topo do card: Mesa, Praça e Tempo */}
                         <div className="flex items-start justify-between gap-2">
@@ -375,53 +510,67 @@ export default function FilaCozinha() {
                           )}
                         </div>
 
-                        {/* Botões de avanço de status */}
+                        {/* Botões de avanço de status e botão Imprimir Comanda */}
                         <div className="pt-2 border-t border-stone-800 flex items-center justify-between gap-2">
-                          {/* Botão de retrocesso (se aplicável) */}
-                          {item.status === 'preparando' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => updateFilaStatus(item.id, 'pendente')}
-                              className="text-[11px] text-stone-400 hover:text-stone-200 h-7 px-2"
-                              title="Retornar para Pendente"
-                            >
-                              Voltar
-                            </Button>
-                          )}
-                          {item.status === 'pronto' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => updateFilaStatus(item.id, 'preparando')}
-                              className="text-[11px] text-stone-400 hover:text-stone-200 h-7 px-2"
-                              title="Retornar para Preparando"
-                            >
-                              Voltar
-                            </Button>
-                          )}
+                          {/* Botão Imprimir Ticket Cozinha/Bar 80mm */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleManualPrint(item)}
+                            className="bg-[#292524] hover:bg-[#44403C] border-[#44403C] text-stone-300 hover:text-white text-[11px] h-7 px-2 flex items-center gap-1"
+                            title="Imprimir ticket térmico 80mm para cozinha/bar"
+                          >
+                            <Printer className="w-3 h-3 text-amber-500" />
+                            <span>Imprimir</span>
+                          </Button>
 
-                          {/* Botão principal de avanço */}
-                          {nextStatus ? (
-                            <Button
-                              size="sm"
-                              onClick={() => updateFilaStatus(item.id, nextStatus)}
-                              className={`ml-auto text-xs font-bold h-7 px-3 flex items-center gap-1.5 shadow-sm ${
-                                nextStatus === 'preparando'
-                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                  : nextStatus === 'pronto'
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                    : 'bg-amber-500 hover:bg-amber-600 text-stone-950'
-                              }`}
-                            >
-                              <span>{nextLabel}</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </Button>
-                          ) : (
-                            <span className="ml-auto text-[11px] text-stone-500 flex items-center gap-1 font-semibold">
-                              <Check className="w-3.5 h-3.5 text-emerald-400" /> Concluído
-                            </span>
-                          )}
+                          {/* Botão de retrocesso (se aplicável) */}
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            {item.status === 'preparando' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => updateFilaStatus(item.id, 'pendente')}
+                                className="text-[11px] text-stone-400 hover:text-stone-200 h-7 px-2"
+                                title="Retornar para Pendente"
+                              >
+                                Voltar
+                              </Button>
+                            )}
+                            {item.status === 'pronto' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => updateFilaStatus(item.id, 'preparando')}
+                                className="text-[11px] text-stone-400 hover:text-stone-200 h-7 px-2"
+                                title="Retornar para Preparando"
+                              >
+                                Voltar
+                              </Button>
+                            )}
+
+                            {/* Botão principal de avanço */}
+                            {nextStatus ? (
+                              <Button
+                                size="sm"
+                                onClick={() => updateFilaStatus(item.id, nextStatus)}
+                                className={`text-xs font-bold h-7 px-3 flex items-center gap-1.5 shadow-sm ${
+                                  nextStatus === 'preparando'
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : nextStatus === 'pronto'
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                      : 'bg-amber-500 hover:bg-amber-600 text-stone-950'
+                                }`}
+                              >
+                                <span>{nextLabel}</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            ) : (
+                              <span className="text-[11px] text-stone-500 flex items-center gap-1 font-semibold">
+                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Concluído
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
