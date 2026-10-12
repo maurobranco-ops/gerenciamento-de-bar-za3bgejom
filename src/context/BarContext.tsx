@@ -128,7 +128,7 @@ const STORAGE_KEYS = {
 
 export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast()
-  const { role: authRole } = useAuth()
+  const { user, role: authRole } = useAuth()
 
   // Se houver role vinda do Supabase Auth real, prioriza; senão usa do estado
   const [roleOverride, setRoleOverride] = useState<UserRole | null>(null)
@@ -255,17 +255,29 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setUnreadOnlineOrdersCount((c) => c + newOnlineItems.length)
               setLastOnlineOrderId(newOnlineItems[0].id)
 
-              // Dispara som se ativado
+              // Guarda restritiva: alertas sonoros e impressão automática só para usuário autenticado
+              // e em telas operacionais de atendimento (Fila de Cozinha e Comandas).
+              // NUNCA em /login, páginas públicas (/pedido) ou telas de gestão administrativa.
+              const currentPath =
+                typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
+              const isUserAuthenticated = Boolean(user)
+              const isOperacionalKitchenRoute =
+                currentPath === '/fila-cozinha' || currentPath.startsWith('/fila-cozinha/')
+              const isOperacionalComandasRoute =
+                currentPath === '/comandas' || currentPath.startsWith('/comandas/')
+              const isOperacionalScreen = isOperacionalKitchenRoute || isOperacionalComandasRoute
+
+              // Dispara som de novo pedido apenas se logado, na tela operacional e com som ativo
               const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
               const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true
-              if (isSoundOn) {
+              if (isSoundOn && isUserAuthenticated && isOperacionalScreen) {
                 SoundEffects.playOrderAlert()
               }
 
-              // Disparo de impressão automática caso esta estação esteja configurada como impressora ativa
+              // Disparo de impressão automática apenas se logado, na Fila de Cozinha e com toggle ativo
               const autoPrintStation =
                 localStorage.getItem('rachide_bar_autoprint_enabled') === 'true'
-              if (autoPrintStation) {
+              if (autoPrintStation && isUserAuthenticated && isOperacionalKitchenRoute) {
                 newOnlineItems.forEach((it) => {
                   printKitchenTicket({ item: it, settings })
                 })
@@ -829,8 +841,11 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ),
     )
 
-    // Bip sonoro interno agradável ao marcar pedido como pronto
-    if (status === 'pronto' && soundEnabled) {
+    // Bip sonoro interno agradável ao marcar pedido como pronto (somente Fila de Cozinha logada)
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
+    const isKitchenRoute =
+      currentPath === '/fila-cozinha' || currentPath.startsWith('/fila-cozinha/')
+    if (status === 'pronto' && soundEnabled && Boolean(user) && isKitchenRoute) {
       SoundEffects.playSuccessAlert()
     }
 
