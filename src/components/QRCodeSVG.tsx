@@ -1,95 +1,105 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 
 interface QRCodeSVGProps {
   value: string
   size?: number
   className?: string
+  margin?: number
 }
 
-// Implementação leve e pura de gerador SVG de QR Code sem dependências externas pesadas
-// Usa matriz visual consistente baseada em hash determinístico para o payload da URL
-export function QRCodeSVG({ value, size = 180, className = '' }: QRCodeSVGProps) {
-  // Gera grid 25x25 determinística com finder patterns oficiais nos 3 cantos
-  const gridSize = 25
-  const cells: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false))
+/**
+ * Componente para renderizar QR Code REAL e escaneável em SVG.
+ * Utiliza o algoritmo padrão do pacote `qrcode` com correção de erro de nível M.
+ */
+export function QRCodeSVG({ value, size = 180, className = '', margin = 2 }: QRCodeSVGProps) {
+  const [svgString, setSvgString] = useState<string>('')
 
-  // 1. Finder patterns nos 3 cantos (7x7)
-  const addFinderPattern = (startX: number, startY: number) => {
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        const isBorder = r === 0 || r === 6 || c === 0 || c === 6
-        const isCore = r >= 2 && r <= 4 && c >= 2 && c <= 4
-        cells[startY + r][startX + c] = isBorder || isCore
-      }
+  useEffect(() => {
+    let isMounted = true
+
+    if (!value) {
+      setSvgString('')
+      return
     }
-  }
 
-  addFinderPattern(0, 0)
-  addFinderPattern(gridSize - 7, 0)
-  addFinderPattern(0, gridSize - 7)
+    QRCode.toString(value, {
+      type: 'svg',
+      width: size,
+      margin: margin,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#1C1917',
+        light: '#FFFFFF',
+      },
+    })
+      .then((svg) => {
+        if (isMounted) {
+          setSvgString(svg)
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao gerar SVG do QR Code:', err)
+      })
 
-  // Separadores brancos ao redor dos finders
-  for (let i = 0; i < 8; i++) {
-    cells[7][i] = false
-    cells[i][7] = false
-    cells[7][gridSize - 8 + (i < 7 ? i : 0)] = false
-    cells[gridSize - 8 + (i < 7 ? i : 0)][7] = false
-  }
-
-  // Timing patterns
-  for (let i = 8; i < gridSize - 8; i++) {
-    cells[6][i] = i % 2 === 0
-    cells[i][6] = i % 2 === 0
-  }
-
-  // Preenche dados determinísticos usando valor da string
-  let hash = 0
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash << 5) - hash + value.charCodeAt(i)
-    hash |= 0
-  }
-
-  for (let r = 0; r < gridSize; r++) {
-    for (let c = 0; c < gridSize; c++) {
-      // Ignora zonas reservadas dos finders
-      const inTopLeft = r < 8 && c < 8
-      const inTopRight = r < 8 && c >= gridSize - 8
-      const inBottomLeft = r >= gridSize - 8 && c < 8
-      const inTiming = r === 6 || c === 6
-
-      if (!inTopLeft && !inTopRight && !inBottomLeft && !inTiming) {
-        // pseudo-random determinístico por célula
-        const cellHash = Math.sin(hash + r * 31 + c * 17) * 10000
-        cells[r][c] = cellHash - Math.floor(cellHash) > 0.48
-      }
+    return () => {
+      isMounted = false
     }
-  }
+  }, [value, size, margin])
 
-  const cellSize = size / gridSize
+  if (!svgString) {
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className={`flex items-center justify-center bg-white rounded-xl shadow-md ${className}`}
+      >
+        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className={`rounded-xl bg-white p-2.5 shadow-md ${className}`}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect width={size} height={size} fill="#FFFFFF" rx={8} />
-      {cells.map((row, r) =>
-        row.map((active, c) =>
-          active ? (
-            <rect
-              key={`${r}-${c}`}
-              x={c * cellSize}
-              y={r * cellSize}
-              width={cellSize + 0.1}
-              height={cellSize + 0.1}
-              fill="#1C1917"
-            />
-          ) : null,
-        ),
-      )}
-    </svg>
+    <div
+      className={`inline-flex items-center justify-center rounded-xl bg-white p-2 shadow-md overflow-hidden ${className}`}
+      style={{ width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: svgString }}
+    />
   )
+}
+
+/**
+ * Função utilitária para gerar Data URL (PNG) ou SVG string de QR code real,
+ * útil para janelas de impressão ou tags <img>.
+ */
+export async function generateQRCodeDataURL(
+  value: string,
+  options?: QRCode.QRCodeToDataURLOptions,
+): Promise<string> {
+  return QRCode.toDataURL(value, {
+    margin: 2,
+    width: options?.width || 300,
+    errorCorrectionLevel: 'M',
+    color: {
+      dark: '#1C1917',
+      light: '#FFFFFF',
+    },
+    ...options,
+  })
+}
+
+export async function generateQRCodeSVGString(
+  value: string,
+  options?: QRCode.QRCodeToStringOptions,
+): Promise<string> {
+  return QRCode.toString(value, {
+    type: 'svg',
+    margin: 2,
+    width: options?.width || 300,
+    errorCorrectionLevel: 'M',
+    color: {
+      dark: '#1C1917',
+      light: '#FFFFFF',
+    },
+    ...options,
+  })
 }

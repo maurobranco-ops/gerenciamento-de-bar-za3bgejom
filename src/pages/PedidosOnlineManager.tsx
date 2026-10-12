@@ -11,7 +11,7 @@ import {
   Download,
 } from 'lucide-react'
 import { useBar } from '@/context/BarContext'
-import { QRCodeSVG } from '@/components/QRCodeSVG'
+import { QRCodeSVG, generateQRCodeDataURL } from '@/components/QRCodeSVG'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
@@ -37,10 +37,18 @@ export default function PedidosOnlineManager() {
     setTimeout(() => setCopiedMesa(null), 2500)
   }
 
-  const handlePrintTableQR = (numero: number) => {
+  const handlePrintTableQR = async (numero: number) => {
     const url = `${origin}/pedido/${numero}`
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
+
+    // Gera QR Code real como Data URL base64 usando o motor interno (sem serviço externo)
+    let qrDataUrl = ''
+    try {
+      qrDataUrl = await generateQRCodeDataURL(url, { width: 320, margin: 2 })
+    } catch (err) {
+      console.error('Erro ao gerar QR Code para impressão:', err)
+    }
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -114,9 +122,7 @@ export default function PedidosOnlineManager() {
             <div style="font-size: 12px; color: #78716c;">Cardápio Digital & Pedido Direto</div>
             <div class="table-badge">MESA ${numero}</div>
             <div class="qr-box">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                url,
-              )}" width="220" height="220" alt="QR Code Mesa ${numero}" />
+              <img src="${qrDataUrl}" width="220" height="220" alt="QR Code Mesa ${numero}" />
             </div>
             <div class="desc">
               <strong>Aponte a câmera do seu celular</strong><br/>
@@ -209,9 +215,9 @@ export default function PedidosOnlineManager() {
                 </Badge>
               </div>
 
-              {/* QR Code Visual */}
+              {/* QR Code Real e Escaneável */}
               <div className="p-3 bg-white rounded-2xl shadow-inner border border-stone-200 flex items-center justify-center">
-                <QRCodeSVG value={mesaUrl} size={150} />
+                <QRCodeSVG value={mesaUrl} size={160} />
               </div>
 
               {/* Link e info */}
