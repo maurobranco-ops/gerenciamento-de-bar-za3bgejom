@@ -21,6 +21,7 @@ import PedidoOnline from './pages/PedidoOnline'
 import PedidosOnlineManager from './pages/PedidosOnlineManager'
 import Configuracoes from './pages/Configuracoes'
 import Usuarios from './pages/Usuarios'
+import Apresentacao from './pages/Apresentacao'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 
@@ -52,6 +53,7 @@ export function App() {
                   <Route path="mesas-config" element={<MesasConfig />} />
                   <Route path="usuarios" element={<Usuarios />} />
                   <Route path="configuracoes" element={<Configuracoes />} />
+                  <Route path="apresentacao" element={<Apresentacao />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Route>

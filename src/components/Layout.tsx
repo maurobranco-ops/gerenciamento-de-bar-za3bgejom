@@ -21,6 +21,7 @@ import {
   ChefHat,
   PackagePlus,
   Settings,
+  Presentation,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { useAuth } from '../hooks/use-auth'
@@ -121,6 +122,12 @@ const NAV_ITEMS: NavItem[] = [
     title: 'Usuários & Equipe',
     path: '/usuarios',
     icon: Users,
+    roles: ['Gerente'],
+  },
+  {
+    title: 'Apresentação',
+    path: '/apresentacao',
+    icon: Presentation,
     roles: ['Gerente'],
   },
   {
