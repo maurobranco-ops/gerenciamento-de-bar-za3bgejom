@@ -53,7 +53,7 @@ const NAV_ITEMS: NavItem[] = [
     title: 'Dashboard',
     path: '/',
     icon: LayoutDashboard,
-    roles: ['Gerente'],
+    roles: ['Garçom', 'Caixa', 'Gerente'],
   },
   {
     title: 'Comandas & Mesas',
