@@ -141,8 +141,7 @@ const NAV_ITEMS: NavItem[] = [
 export default function Layout() {
   const barContext = useBar()
   const { user, profile, signOut } = useAuth()
-  const { role, setRole, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } =
-    barContext
+  const { role, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } = barContext
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -360,74 +359,75 @@ export default function Layout() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* User Profile & Logout */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:bg-[#44403C] hover:text-white flex items-center gap-2 text-xs"
-              >
-                <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-xs border border-amber-500/40">
-                  {role[0]}
-                </div>
-                <div className="text-left hidden sm:block">
-                  <div className="font-semibold leading-none">{profile?.nome_exibicao || role}</div>
-                  <div className="text-[10px] text-stone-400">{role}</div>
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-60 bg-[#292524] border-[#44403C] text-stone-100 p-1"
-            >
-              <DropdownMenuLabel className="text-xs text-stone-400">
-                <div className="font-bold text-stone-200">
-                  {profile?.nome_exibicao || 'Usuário'}
-                </div>
-                <div className="text-[10px] text-stone-400 truncate">
-                  {user?.email || 'Autenticado'}
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-[#44403C]" />
-              <div className="px-2 py-1 text-[11px] text-stone-400 font-medium">
-                Alternar visualização rápida:
-              </div>
-              {(['Garçom', 'Caixa', 'Gerente'] as UserRole[]).map((r) => (
-                <DropdownMenuItem
-                  key={r}
-                  onClick={() => setRole(r)}
-                  className={`cursor-pointer flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg focus:bg-[#44403C] focus:text-stone-100 ${
-                    role === r ? 'bg-amber-500/15 text-amber-400 font-semibold' : 'text-stone-300'
-                  }`}
+          {/* User Profile & Direct Logout */}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:bg-[#44403C] hover:text-white flex items-center gap-2 text-xs"
                 >
-                  <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-stone-400" />
-                    <span>{r}</span>
+                  <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-xs border border-amber-500/40">
+                    {role[0]}
                   </div>
-                  {role === r && (
-                    <Badge
-                      variant="outline"
-                      className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[9px]"
-                    >
-                      Ativo
-                    </Badge>
-                  )}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator className="bg-[#44403C]" />
-              <DropdownMenuItem
-                onClick={async () => {
-                  await signOut()
-                  navigate('/login')
-                }}
-                className="cursor-pointer text-xs py-2 px-2.5 text-red-400 hover:text-red-300 focus:bg-red-950/40 focus:text-red-300 flex items-center gap-2"
+                  <div className="text-left hidden sm:block">
+                    <div className="font-semibold leading-none">
+                      {profile?.nome_exibicao || role}
+                    </div>
+                    <div className="text-[10px] text-amber-400 font-medium">{role}</div>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-64 bg-[#292524] border-[#44403C] text-stone-100 p-2"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sair da conta</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuLabel className="text-xs text-stone-400 p-2">
+                  <div className="font-bold text-stone-200 text-sm">
+                    {profile?.nome_exibicao || 'Usuário Autenticado'}
+                  </div>
+                  <div className="text-[11px] text-stone-400 truncate mt-0.5">
+                    {user?.email || ''}
+                  </div>
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-semibold border border-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    Perfil Supabase: {role}
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-[#44403C]" />
+                <div className="p-2 text-[11px] text-stone-400 leading-relaxed bg-[#1C1917] rounded-md border border-[#44403C]/60 mb-2">
+                  Perfil validado diretamente pelo cadastro seguro no Supabase. Para trocar de
+                  perfil, saia e entre com outro usuário.
+                </div>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await signOut()
+                    navigate('/login')
+                  }}
+                  className="cursor-pointer text-xs py-2 px-2.5 text-red-400 hover:text-red-300 focus:bg-red-950/40 focus:text-red-300 flex items-center gap-2 font-medium"
+                >
+                  <LogOut className="w-4 h-4 text-red-400" />
+                  <span>Sair da conta (Logout)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Botão Sair visível diretamente no header */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await signOut()
+                navigate('/login')
+              }}
+              title="Sair da conta e trocar de usuário"
+              className="text-stone-400 hover:text-red-400 hover:bg-red-950/20 text-xs flex items-center gap-1.5 px-2.5 h-8 border border-transparent hover:border-red-900/40"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Sair</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -439,28 +439,34 @@ export default function Layout() {
             collapsed ? 'w-[72px]' : 'w-[280px]'
           }`}
         >
-          {/* Profile Badge in Sidebar */}
+          {/* Profile Badge in Sidebar (exclusivo do Supabase Auth, sem seletor de override) */}
           <div className="p-4 border-b border-[#44403C]/80">
             {!collapsed ? (
-              <div className="p-3 rounded-xl bg-[#1C1917]/80 border border-[#44403C] flex items-center justify-between">
-                <div>
+              <div className="p-3 rounded-xl bg-[#1C1917]/80 border border-[#44403C]">
+                <div className="flex items-center justify-between">
                   <div className="text-[11px] uppercase tracking-wider font-semibold text-stone-400">
-                    Acesso Ativo
+                    Acesso Autenticado
                   </div>
-                  <div className="text-sm font-bold text-amber-400 flex items-center gap-1.5 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    {role}
-                  </div>
+                  <Badge
+                    variant="outline"
+                    className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
+                  >
+                    v1.4.1
+                  </Badge>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
-                >
-                  v1.4.1
-                </Badge>
+                <div className="text-sm font-bold text-amber-400 flex items-center gap-1.5 mt-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  {role}
+                </div>
+                <div className="text-[11px] text-stone-400 truncate mt-1">
+                  {profile?.nome_exibicao || user?.email || 'Autenticado'}
+                </div>
               </div>
             ) : (
-              <div className="flex justify-center" title={`Perfil: ${role}`}>
+              <div
+                className="flex justify-center"
+                title={`Perfil Supabase: ${role} (${profile?.nome_exibicao || user?.email})`}
+              >
                 <div className="w-10 h-10 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-center text-amber-500 font-bold text-sm">
                   {role[0]}
                 </div>
@@ -516,8 +522,20 @@ export default function Layout() {
             })}
           </nav>
 
-          {/* Collapse Sidebar Button */}
-          <div className="p-3 border-t border-[#44403C]/80">
+          {/* Bottom Sidebar: Logout & Collapse */}
+          <div className="p-3 border-t border-[#44403C]/80 space-y-2">
+            <button
+              onClick={async () => {
+                await signOut()
+                navigate('/login')
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-red-950/20 hover:bg-red-950/40 text-xs text-red-400 hover:text-red-300 transition-colors border border-red-900/30"
+              title="Sair da conta e logar com outro usuário"
+            >
+              <LogOut className="w-4 h-4" />
+              {!collapsed && <span>Sair da Conta</span>}
+            </button>
+
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#1C1917] hover:bg-[#44403C] text-xs text-stone-400 hover:text-stone-200 transition-colors border border-[#44403C]"

@@ -30,7 +30,6 @@ import { printKitchenTicket } from '../lib/thermalPrinter'
 
 interface BarContextType {
   role: UserRole
-  setRole: (role: UserRole) => void
   isLoading: boolean
   isSyncing: boolean
   reloadAllData: () => Promise<void>
@@ -122,24 +121,24 @@ interface BarContextType {
 
 const BarContext = createContext<BarContextType | undefined>(undefined)
 
-const STORAGE_KEYS = {
-  ROLE: 'rachide_bar_role',
-}
-
 export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast()
   const { user, role: authRole } = useAuth()
 
-  // Se houver role vinda do Supabase Auth real, prioriza; senão usa do estado
-  const [roleOverride, setRoleOverride] = useState<UserRole | null>(null)
-  const role: UserRole = roleOverride || authRole || 'Gerente'
-
-  // Sincroniza quando authRole mudar
+  // Limpeza imediata do cache local legado de perfis no mount
   useEffect(() => {
-    if (authRole) {
-      setRoleOverride(authRole)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem('rachide_bar_role')
+      } catch {
+        // ignore
+      }
     }
-  }, [authRole])
+  }, [])
+
+  // O perfil do usuário vem EXCLUSIVAMENTE do cadastro do usuário logado no Supabase
+  // Garçom é o fallback mais seguro caso perfil ainda não esteja carregado
+  const role: UserRole = authRole || 'Garçom'
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -176,11 +175,6 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearUnreadOnlineOrders = () => {
     setUnreadOnlineOrdersCount(0)
   }
-
-  // Sync role to localStorage
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ROLE, role)
-  }, [role])
 
   // Carga inicial do Supabase
   const loadDataFromSupabase = useCallback(async () => {
@@ -313,14 +307,6 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       return false
     }
-  }
-
-  const setRole = (newRole: UserRole) => {
-    setRoleOverride(newRole)
-    toast({
-      title: `Perfil alternado para ${newRole}`,
-      description: `Menus e permissões atualizados conforme o perfil de ${newRole}.`,
-    })
   }
 
   const checkRoleAccess = (allowedRoles: UserRole[], actionLabel?: string): boolean => {
@@ -1044,7 +1030,6 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <BarContext.Provider
       value={{
         role,
-        setRole,
         isLoading,
         isSyncing,
         reloadAllData: loadDataFromSupabase,

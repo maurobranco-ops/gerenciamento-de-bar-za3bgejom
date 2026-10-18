@@ -108,14 +108,25 @@ export const BarService = {
   },
 
   async updateMesaCapacidade(id: string, capacidade: number): Promise<void> {
-    const { error } = await db
-      .from('mesas')
-      .update({ capacidade, updated_at: new Date().toISOString() })
-      .eq('id', id)
+    const { error: rpcError } = await db.rpc('gerente_atualizar_capacidade_mesa', {
+      p_mesa_id: id,
+      p_capacidade: capacidade,
+    })
 
-    if (error) {
-      console.error('Erro ao atualizar capacidade da mesa:', error)
-      throw error
+    if (rpcError) {
+      console.warn(
+        'RPC gerente_atualizar_capacidade_mesa falhou, tentando fallback direto:',
+        rpcError,
+      )
+      const { error } = await db
+        .from('mesas')
+        .update({ capacidade, updated_at: new Date().toISOString() })
+        .eq('id', id)
+
+      if (error) {
+        console.error('Erro ao atualizar capacidade da mesa:', error)
+        throw error
+      }
     }
   },
 
@@ -395,12 +406,19 @@ export const BarService = {
       })
     }
 
-    // 2. Abater estoque no banco
+    // 2. Abater estoque no banco via RPC segura com fallback
     const newStock = Math.max(0, Number((item.stock - quantity).toFixed(2)))
-    await db
-      .from('produtos')
-      .update({ estoque: newStock, updated_at: new Date().toISOString() })
-      .eq('id', item.id)
+    const { error: stockRpcErr } = await db.rpc('abater_estoque_comanda', {
+      p_produto_id: item.id,
+      p_delta: quantity,
+    })
+    if (stockRpcErr) {
+      console.warn('RPC abater_estoque_comanda fallback:', stockRpcErr)
+      await db
+        .from('produtos')
+        .update({ estoque: newStock, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+    }
 
     // 3. Atualizar mesa para 'Ocupada' se estava Livre
     await db
@@ -455,10 +473,17 @@ export const BarService = {
     }
 
     const newStock = Math.max(0, Number((currentProductStock - delta).toFixed(2)))
-    await db
-      .from('produtos')
-      .update({ estoque: newStock, updated_at: new Date().toISOString() })
-      .eq('id', productId)
+    const { error: stockRpcErr } = await db.rpc('abater_estoque_comanda', {
+      p_produto_id: productId,
+      p_delta: delta,
+    })
+    if (stockRpcErr) {
+      console.warn('RPC abater_estoque_comanda fallback:', stockRpcErr)
+      await db
+        .from('produtos')
+        .update({ estoque: newStock, updated_at: new Date().toISOString() })
+        .eq('id', productId)
+    }
   },
 
   async toggleServiceFee(tableNumber: number, currentValue: boolean): Promise<void> {
@@ -504,17 +529,28 @@ export const BarService = {
     // 3. Inserir movimento no caixa
     const movId = `cm-${Date.now()}`
     const desc = `Pagamento Mesa ${tableNumber} (${splitGuests && splitGuests > 1 ? `${splitGuests} pessoas` : 'Integral'})`
-    const { error: movErr } = await db.from('movimentos_caixa').insert({
-      id: movId,
-      data_hora: nowIso,
-      descricao: desc,
-      tipo: 'Entrada',
-      forma_pagamento: paymentMethod,
-      valor: amountPaid,
-      usuario: roleUser,
-      comanda_id: comandaId,
+    const { error: movRpcErr } = await db.rpc('registrar_movimento_caixa_seguro', {
+      p_id: movId,
+      p_tipo: 'Entrada',
+      p_descricao: desc,
+      p_valor: amountPaid,
+      p_forma_pagamento: paymentMethod,
+      p_comanda_id: comandaId,
     })
-    if (movErr) console.error('Erro ao salvar movimento de caixa:', movErr)
+    if (movRpcErr) {
+      console.warn('RPC registrar_movimento_caixa_seguro fallback direto:', movRpcErr)
+      const { error: movErr } = await db.from('movimentos_caixa').insert({
+        id: movId,
+        data_hora: nowIso,
+        descricao: desc,
+        tipo: 'Entrada',
+        forma_pagamento: paymentMethod,
+        valor: amountPaid,
+        usuario: roleUser,
+        comanda_id: comandaId,
+      })
+      if (movErr) console.error('Erro ao salvar movimento de caixa:', movErr)
+    }
 
     // 4. Inserir documento fiscal simulado
     const seq = Math.floor(100 + Math.random() * 900)
@@ -687,15 +723,31 @@ export const BarService = {
     const nowIso = new Date().toISOString()
     const id = `cm-${Date.now()}`
 
-    await db.from('movimentos_caixa').insert({
-      id,
-      data_hora: nowIso,
-      descricao: description,
-      tipo: type,
-      forma_pagamento: paymentMethod || 'Dinheiro',
-      valor: value,
-      usuario: user,
+    const { error: movRpcErr } = await db.rpc('registrar_movimento_caixa_seguro', {
+      p_id: id,
+      p_tipo: type,
+      p_descricao: description,
+      p_valor: value,
+      p_forma_pagamento: paymentMethod || 'Dinheiro',
+      p_comanda_id: null,
     })
+
+    if (movRpcErr) {
+      console.warn('RPC registrar_movimento_caixa_seguro fallback direto:', movRpcErr)
+      const { error } = await db.from('movimentos_caixa').insert({
+        id,
+        data_hora: nowIso,
+        descricao: description,
+        tipo: type,
+        forma_pagamento: paymentMethod || 'Dinheiro',
+        valor: value,
+        usuario: user,
+      })
+      if (error) {
+        console.error('Erro ao adicionar movimento no caixa:', error)
+        throw error
+      }
+    }
 
     return {
       id,
@@ -789,7 +841,17 @@ export const BarService = {
   },
 
   async cancelFiscalDoc(id: string): Promise<void> {
-    await db.from('documentos_fiscais').update({ status: 'Cancelada' }).eq('id', id)
+    const { error: rpcErr } = await db.rpc('cancelar_documento_fiscal', {
+      p_documento_id: id,
+    })
+    if (rpcErr) {
+      console.warn('RPC cancelar_documento_fiscal fallback direto:', rpcErr)
+      const { error } = await db
+        .from('documentos_fiscais')
+        .update({ status: 'Cancelada' })
+        .eq('id', id)
+      if (error) throw error
+    }
   },
 
   // --- FILA DE COZINHA & BAR ---

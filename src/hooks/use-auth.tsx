@@ -45,6 +45,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
+      // Limpa resquícios antigos de cache de override local caso ainda existam
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          window.localStorage.removeItem('rachide_bar_role')
+        } catch {
+          // ignore
+        }
+      }
+
       const { data, error } = await (supabase as any)
         .from('perfis_usuarios')
         .select('*')
@@ -110,6 +119,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const signOut = async () => {
+    // Ao sair, limpa explicitamente qualquer resquício de storage/cache de perfil
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem('rachide_bar_role')
+      } catch {
+        // ignore
+      }
+    }
     const { error } = await supabase.auth.signOut()
     setUser(null)
     setSession(null)
