@@ -288,94 +288,78 @@ export default function KdsCozinha() {
         isFullscreen ? 'fixed inset-0 z-50 p-3 sm:p-5 overflow-y-auto' : 'space-y-4'
       }`}
     >
-      {/* BARRA SUPERIOR DO KDS COM FILTROS GRANDES POR PRAÇA E BOTÕES DE CONTROLE */}
-      <header className="p-3.5 sm:p-4 rounded-2xl bg-[#1C1917] border border-[#38332E] shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        {/* Identificação da tela & Status realtime */}
-        <div className="flex items-center justify-between lg:justify-start gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shadow-md shadow-amber-950/40">
-              <ChefHat className="w-7 h-7" />
+      {/* BARRA SUPERIOR DO KDS COM FILTROS POR PRAÇA E BOTÕES DE CONTROLE */}
+      <header className="p-3 sm:p-4 rounded-2xl bg-[#1C1917] border border-[#38332E] shadow-lg flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-3.5">
+        {/* GRUPO 1: Identificação da tela & Status realtime */}
+        <div className="flex items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center font-black shadow-md shadow-amber-950/40 flex-shrink-0">
+              <ChefHat className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-stone-50">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-stone-50 whitespace-nowrap">
                   KDS Cozinha & Bar
                 </h1>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] sm:text-[11px] font-bold whitespace-nowrap flex-shrink-0">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   Ao Vivo
                 </span>
               </div>
-              <p className="text-xs text-stone-400 hidden sm:block">
+              <p className="text-[11px] sm:text-xs text-stone-400 hidden md:block truncate">
                 Fila de produção em colunas Kanban com cronômetro de espera e toque rápido.
               </p>
             </div>
           </div>
-
-          {/* Em modo Cozinha restrita, botão de logout rápido no topo para mobile */}
-          {isOnlyKitchenUser && (
-            <div className="lg:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  await signOut()
-                  navigate('/login')
-                }}
-                className="text-stone-400 hover:text-red-400 text-xs h-9 px-2.5"
-                title="Sair da conta"
-              >
-                <LogOut className="w-4 h-4 mr-1" />
-                Sair
-              </Button>
-            </div>
-          )}
         </div>
 
-        {/* FILTRO GIGANTE POR PRAÇA (Cozinha / Bar / Todas) - botões touch-first */}
-        <div className="flex items-center justify-center bg-[#292524] p-1.5 rounded-2xl border border-[#44403C] gap-1.5 overflow-x-auto max-w-full">
+        {/* GRUPO 2: FILTRO POR PRAÇA (Cozinha / Bar / Todas) */}
+        <nav
+          aria-label="Filtro de praça"
+          className="flex items-center bg-[#292524] p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-[#44403C] gap-1 sm:gap-1.5 overflow-x-auto w-full xl:w-auto justify-stretch sm:justify-center flex-shrink-0"
+        >
           <button
             type="button"
             onClick={() => setSelectedArea('todos')}
-            className={`flex-1 sm:flex-initial min-w-[90px] sm:min-w-[110px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 whitespace-nowrap active:scale-95 ${
+            className={`flex-1 xl:flex-initial min-w-[76px] sm:min-w-[100px] py-1.5 sm:py-2 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 ${
               selectedArea === 'todos'
                 ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40'
                 : 'text-stone-300 hover:text-white hover:bg-[#38332E]'
             }`}
           >
-            <Filter className="w-4 h-4" />
+            <Filter className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Todas ({counts.totalAtivo})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedArea('cozinha')}
-            className={`flex-1 sm:flex-initial min-w-[90px] sm:min-w-[120px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 whitespace-nowrap active:scale-95 ${
+            className={`flex-1 xl:flex-initial min-w-[76px] sm:min-w-[110px] py-1.5 sm:py-2 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 ${
               selectedArea === 'cozinha'
                 ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40'
                 : 'text-stone-300 hover:text-white hover:bg-[#38332E]'
             }`}
           >
-            <UtensilsCrossed className="w-4 h-4" />
+            <UtensilsCrossed className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Cozinha ({counts.cozinha})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedArea('bar')}
-            className={`flex-1 sm:flex-initial min-w-[90px] sm:min-w-[110px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 whitespace-nowrap active:scale-95 ${
+            className={`flex-1 xl:flex-initial min-w-[76px] sm:min-w-[100px] py-1.5 sm:py-2 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 ${
               selectedArea === 'bar'
                 ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40'
                 : 'text-stone-300 hover:text-white hover:bg-[#38332E]'
             }`}
           >
-            <Beer className="w-4 h-4" />
+            <Beer className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Bar ({counts.bar})</span>
           </button>
-        </div>
+        </nav>
 
-        {/* CONTROLES: SOM, TELA CHEIA, ATUALIZAR E SAIR */}
-        <div className="flex items-center justify-end gap-2 flex-wrap">
+        {/* GRUPO 3: CONTROLES (SOM, TELA CHEIA, ATUALIZAR E SAIR SEMPRE JUNTOS EM UMA BARRA) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 justify-end w-full xl:w-auto flex-wrap sm:flex-nowrap">
           {/* Som Ativo / Mudo */}
           <Button
             variant="outline"
@@ -386,7 +370,7 @@ export default function KdsCozinha() {
                 SoundEffects.playOrderAlert()
               }
             }}
-            className={`h-10 px-3.5 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] transition-all active:scale-95 ${
+            className={`flex-1 sm:flex-initial h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] transition-all whitespace-nowrap active:scale-95 ${
               soundEnabled
                 ? 'text-amber-400 border-amber-500/50 bg-amber-500/10'
                 : 'text-stone-400 hover:text-stone-200'
@@ -395,13 +379,13 @@ export default function KdsCozinha() {
           >
             {soundEnabled ? (
               <>
-                <Volume2 className="w-4 h-4 mr-1.5 text-amber-400" />
-                <span>Alerta Som</span>
+                <Volume2 className="w-4 h-4 mr-1 sm:mr-1.5 text-amber-400 flex-shrink-0" />
+                <span className="whitespace-nowrap">Alerta Som</span>
               </>
             ) : (
               <>
-                <VolumeX className="w-4 h-4 mr-1.5 text-stone-500" />
-                <span>Mudo</span>
+                <VolumeX className="w-4 h-4 mr-1 sm:mr-1.5 text-stone-500 flex-shrink-0" />
+                <span className="whitespace-nowrap">Mudo</span>
               </>
             )}
           </Button>
@@ -411,20 +395,20 @@ export default function KdsCozinha() {
             variant="outline"
             size="sm"
             onClick={toggleFullscreen}
-            className={`h-10 px-3.5 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] hover:bg-[#38332E] text-stone-200 active:scale-95 ${
+            className={`flex-1 sm:flex-initial h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] hover:bg-[#38332E] text-stone-200 transition-all whitespace-nowrap active:scale-95 ${
               isFullscreen ? 'border-amber-500 text-amber-300' : ''
             }`}
             title={isFullscreen ? 'Sair da tela cheia' : 'Ativar modo tela cheia (KDS TV)'}
           >
             {isFullscreen ? (
               <>
-                <Minimize2 className="w-4 h-4 mr-1.5 text-amber-400" />
-                <span>Janela</span>
+                <Minimize2 className="w-4 h-4 mr-1 sm:mr-1.5 text-amber-400 flex-shrink-0" />
+                <span className="whitespace-nowrap">Janela</span>
               </>
             ) : (
               <>
-                <Maximize2 className="w-4 h-4 mr-1.5 text-amber-400" />
-                <span>Tela Cheia</span>
+                <Maximize2 className="w-4 h-4 mr-1 sm:mr-1.5 text-amber-400 flex-shrink-0" />
+                <span className="whitespace-nowrap">Tela Cheia</span>
               </>
             )}
           </Button>
@@ -435,31 +419,31 @@ export default function KdsCozinha() {
             size="sm"
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="h-10 px-3.5 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] hover:bg-[#38332E] text-stone-200 active:scale-95"
+            className="flex-1 sm:flex-initial h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold bg-[#292524] border-[#44403C] hover:bg-[#38332E] text-stone-200 transition-all whitespace-nowrap active:scale-95"
             title="Atualizar dados agora"
           >
             <RefreshCw
-              className={`w-4 h-4 mr-1.5 text-amber-500 ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`w-4 h-4 mr-1 sm:mr-1.5 text-amber-500 flex-shrink-0 ${
+                isRefreshing ? 'animate-spin' : ''
+              }`}
             />
-            <span className="hidden sm:inline">Atualizar</span>
+            <span className="whitespace-nowrap">Atualizar</span>
           </Button>
 
-          {/* Botão de Logout para usuário com perfil Cozinha */}
-          {isOnlyKitchenUser && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                await signOut()
-                navigate('/login')
-              }}
-              className="h-10 px-3.5 rounded-xl text-xs font-bold bg-red-950/20 hover:bg-red-950/40 text-red-300 border-red-900/40 hidden lg:flex items-center gap-1.5 active:scale-95"
-              title="Sair do sistema"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sair</span>
-            </Button>
-          )}
+          {/* Botão de Logout consistente integrado ao grupo de controles */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await signOut()
+              navigate('/login')
+            }}
+            className="flex-1 sm:flex-initial h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold bg-red-950/20 hover:bg-red-950/40 text-red-300 border-red-900/50 hover:border-red-800 transition-all whitespace-nowrap active:scale-95 flex items-center justify-center"
+            title="Sair do sistema (Logout)"
+          >
+            <LogOut className="w-4 h-4 mr-1 sm:mr-1.5 text-red-400 flex-shrink-0" />
+            <span className="whitespace-nowrap">Sair</span>
+          </Button>
         </div>
       </header>
 
@@ -538,7 +522,7 @@ export default function KdsCozinha() {
                         return (
                           <article
                             key={item.id}
-                            className={`p-4 sm:p-5 rounded-2xl bg-[#25221F] border-2 transition-all shadow-md flex flex-col justify-between gap-3 group relative ${
+                            className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-[#25221F] border-2 transition-all shadow-md flex flex-col gap-2.5 group relative ${
                               isRecentPulse
                                 ? 'border-amber-400 ring-4 ring-amber-500/40 animate-pulse bg-amber-950/20'
                                 : waiting.isUrgent && item.status !== 'entregue'
@@ -546,119 +530,168 @@ export default function KdsCozinha() {
                                   : 'border-[#3D3833] hover:border-amber-500/50'
                             }`}
                           >
-                            {/* TOPO DO CARTÃO: MESA GIGANTE + HORÁRIO + CRONÔMETRO DE ESPERA */}
-                            <div className="flex items-start justify-between gap-2 border-b border-[#38332E] pb-3">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {/* Mesa Gigante */}
-                                <div className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-stone-950 font-black text-base sm:text-lg tracking-tight shadow-md shadow-amber-950/40">
-                                  MESA {item.mesaNumero ?? '?'}
+                            {/* TOPO DO CARTÃO (EMPILHADO / COMPACTO): MESA + CRONÔMETRO DE ESPERA */}
+                            <div className="flex flex-col gap-1.5 border-b border-[#38332E] pb-2.5">
+                              {/* Linha superior: Mesa e Badges */}
+                              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {/* Identificador da Mesa compacto */}
+                                  <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-stone-950 font-black text-xs sm:text-sm tracking-tight shadow-sm shadow-amber-950/40 whitespace-nowrap">
+                                    MESA {item.mesaNumero ?? '?'}
+                                  </span>
+
+                                  {/* Badge Pedido On-line */}
+                                  {isOnlineOrder && (
+                                    <Badge className="bg-amber-400/20 text-amber-300 border-amber-400/50 text-[10px] font-bold px-1.5 py-0.5 whitespace-nowrap">
+                                      On-line
+                                    </Badge>
+                                  )}
+
+                                  {/* Praça: Bar ou Cozinha */}
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] font-bold uppercase px-1.5 py-0.5 flex items-center gap-1 whitespace-nowrap ${
+                                      item.areaPreparo === 'bar'
+                                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+                                        : 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                                    }`}
+                                  >
+                                    {item.areaPreparo === 'bar' ? (
+                                      <>
+                                        <Beer className="w-3 h-3" /> Bar
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChefHat className="w-3 h-3" /> Cozinha
+                                      </>
+                                    )}
+                                  </Badge>
                                 </div>
 
-                                {/* Badge Pedido On-line */}
-                                {isOnlineOrder && (
-                                  <Badge className="bg-amber-400/20 text-amber-300 border-amber-400/50 text-[11px] font-black px-2 py-0.5">
-                                    Pedido On-line
-                                  </Badge>
-                                )}
-
-                                {/* Praça: Bar ou Cozinha */}
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[11px] font-black uppercase px-2.5 py-0.5 flex items-center gap-1.5 ${
-                                    item.areaPreparo === 'bar'
-                                      ? 'bg-blue-500/15 text-blue-300 border-blue-500/40'
-                                      : 'bg-orange-500/15 text-orange-300 border-orange-500/40'
-                                  }`}
-                                >
-                                  {item.areaPreparo === 'bar' ? (
-                                    <>
-                                      <Beer className="w-3.5 h-3.5" /> Bar
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChefHat className="w-3.5 h-3.5" /> Cozinha
-                                    </>
-                                  )}
-                                </Badge>
-                              </div>
-
-                              {/* Cronômetro de Espera + Horário do Pedido */}
-                              <div className="text-right flex flex-col items-end gap-1">
+                                {/* Cronômetro de Espera */}
                                 <span
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border tabular-nums shadow-sm ${waiting.severityClass}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-bold border tabular-nums whitespace-nowrap shadow-sm ${waiting.severityClass}`}
                                   title={`Tempo de espera desde o pedido: ${waiting.label}`}
                                 >
-                                  <Clock className="w-3.5 h-3.5" />
+                                  <Clock className="w-3 h-3 flex-shrink-0" />
                                   <span>{waiting.label}</span>
                                 </span>
+                              </div>
+
+                              {/* Linha secundária do cabeçalho: horário de entrada e comanda */}
+                              <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-stone-400 gap-1">
+                                {item.clienteNome ? (
+                                  <span className="truncate">
+                                    Comanda:{' '}
+                                    <strong className="text-stone-300 font-semibold">
+                                      {item.clienteNome}
+                                    </strong>
+                                  </span>
+                                ) : (
+                                  <span />
+                                )}
                                 {horaFormatada && (
-                                  <span className="text-[11px] text-stone-400 font-mono">
+                                  <span className="font-mono text-stone-400 flex-shrink-0 whitespace-nowrap">
                                     Entrou às {horaFormatada}
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            {/* CORPO DO CARTÃO: ITENS EM LETRAS GRANDES E OBSERVAÇÃO DESTACADA */}
+                            {/* CORPO DO CARTÃO: ITEM COMPACTO, DILIGENTE E DIRETO */}
                             {/* IMPORTANTE: NUNCA exibir fotos de produtos nesta tela — apenas texto/ícones */}
-                            <div className="space-y-2 py-1">
-                              <div className="flex items-start gap-3">
-                                <span className="text-2xl sm:text-3xl font-black text-amber-400 tabular-nums leading-none">
+                            <div className="space-y-1.5 py-0.5">
+                              <div className="flex items-start gap-2">
+                                <span className="text-lg sm:text-xl font-black text-amber-400 tabular-nums leading-none pt-0.5 flex-shrink-0">
                                   {item.quantidade ?? 1}x
                                 </span>
-                                <div className="flex-1">
-                                  <h3 className="text-lg sm:text-xl font-black text-stone-50 leading-snug tracking-tight">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-sm sm:text-base font-bold text-stone-100 leading-snug break-words">
                                     {item.nomeProduto || 'Item da Comanda'}
                                   </h3>
-                                  {item.clienteNome && (
-                                    <p className="text-xs text-stone-400 mt-0.5">
-                                      Comanda:{' '}
-                                      <span className="text-stone-300 font-bold">
-                                        {item.clienteNome}
-                                      </span>
-                                    </p>
-                                  )}
                                 </div>
                               </div>
 
-                              {/* Observações de item em grande destaque */}
+                              {/* Observações de item compacta e destacada */}
                               {item.observacoes && (
-                                <div className="mt-2.5 p-3 rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-200 text-xs sm:text-sm font-bold flex items-start gap-2 shadow-sm">
-                                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                                  <div className="leading-snug">
-                                    <span className="text-amber-400 uppercase tracking-wider text-[10px] block font-black">
-                                      Observação do Cliente:
+                                <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[11px] font-medium flex items-start gap-1.5 shadow-sm">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                  <div className="leading-tight min-w-0 flex-1">
+                                    <span className="text-amber-400 uppercase tracking-wider text-[9px] block font-black">
+                                      Obs:
                                     </span>
-                                    {item.observacoes}
+                                    <span className="break-words">{item.observacoes}</span>
                                   </div>
                                 </div>
                               )}
                             </div>
 
-                            {/* RODAPÉ DO CARTÃO: BOTÕES DE AVANÇO ADAPTATIVOS E TOUCH-FIRST */}
-                            {/* Layout com flex-wrap/stacking para NUNCA vazar a largura do cartão */}
-                            <div className="pt-3 border-t border-[#38332E] flex flex-wrap items-center justify-between gap-2">
-                              {/* Botão Imprimir Ticket Térmico 80mm */}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handlePrintTicket(item)}
-                                className="h-10 px-3 bg-[#1C1917] hover:bg-[#38332E] border-[#44403C] text-stone-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 flex-shrink-0"
-                                title="Imprimir ticket para cozinha"
-                              >
-                                <Printer className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                                <span>Ticket</span>
-                              </Button>
+                            {/* RODAPÉ DO CARTÃO: EMPILHAMENTO VERTICAL ROBUSTO (NUNCA TRUNCA O BOTÃO PRINCIPAL) */}
+                            <div className="pt-2 border-t border-[#38332E] flex flex-col gap-1.5 w-full">
+                              {/* BOTÃO PRINCIPAL DE AVANÇO: 100% de largura, flexível, sem truncar texto */}
+                              {item.status === 'pendente' && (
+                                <Button
+                                  type="button"
+                                  onClick={() => updateFilaStatus(item.id, 'preparando')}
+                                  className="w-full h-10 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all whitespace-nowrap"
+                                >
+                                  <Flame className="w-4 h-4 text-blue-200 flex-shrink-0" />
+                                  <span>Iniciar Preparo</span>
+                                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
+                                </Button>
+                              )}
 
-                              {/* Ações de avanço de status com suporte total a encolhimento e quebra segura */}
-                              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end flex-wrap sm:flex-nowrap">
-                                {/* Botão de retrocesso simples */}
+                              {item.status === 'preparando' && (
+                                <Button
+                                  type="button"
+                                  onClick={() => updateFilaStatus(item.id, 'pronto')}
+                                  className="w-full h-10 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all whitespace-nowrap"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+                                  <span>Marcar Pronto</span>
+                                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
+                                </Button>
+                              )}
+
+                              {item.status === 'pronto' && (
+                                <Button
+                                  type="button"
+                                  onClick={() => updateFilaStatus(item.id, 'entregue')}
+                                  className="w-full h-10 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs sm:text-sm shadow-md shadow-amber-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all whitespace-nowrap"
+                                >
+                                  <CheckCheck className="w-4 h-4 text-stone-950 flex-shrink-0" />
+                                  <span>Marcar Entregue</span>
+                                </Button>
+                              )}
+
+                              {item.status === 'entregue' && (
+                                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-stone-400 py-1">
+                                  <Check className="w-4 h-4 text-emerald-400" />
+                                  <span>Entregue</span>
+                                </div>
+                              )}
+
+                              {/* LINHA SECUNDÁRIA DE AÇÕES AUXILIARES: TICKET + VOLTAR (SE APLICÁVEL) */}
+                              <div className="flex items-center justify-between gap-1.5 w-full">
+                                {/* Botão Imprimir Ticket Térmico */}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handlePrintTicket(item)}
+                                  className="h-8 flex-1 px-2.5 bg-[#1C1917] hover:bg-[#38332E] border-[#44403C] text-stone-300 hover:text-white text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
+                                  title="Imprimir ticket para cozinha"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                  <span>Imprimir Ticket</span>
+                                </Button>
+
+                                {/* Botão Voltar de Status */}
                                 {item.status === 'preparando' && (
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => updateFilaStatus(item.id, 'pendente')}
-                                    className="h-10 px-2.5 text-xs text-stone-400 hover:text-stone-200 rounded-xl flex-shrink-0"
+                                    className="h-8 px-2 text-[11px] text-stone-400 hover:text-stone-200 hover:bg-[#292524] rounded-lg flex-shrink-0 whitespace-nowrap"
                                     title="Voltar para Pendente"
                                   >
                                     Voltar
@@ -669,54 +702,11 @@ export default function KdsCozinha() {
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => updateFilaStatus(item.id, 'preparando')}
-                                    className="h-10 px-2.5 text-xs text-stone-400 hover:text-stone-200 rounded-xl flex-shrink-0"
+                                    className="h-8 px-2 text-[11px] text-stone-400 hover:text-stone-200 hover:bg-[#292524] rounded-lg flex-shrink-0 whitespace-nowrap"
                                     title="Voltar para Preparando"
                                   >
                                     Voltar
                                   </Button>
-                                )}
-
-                                {/* BOTÕES GIGANTES DE UM TOQUE: w-full em telas estreitas, min-w-0 e flex-1 */}
-                                {item.status === 'pendente' && (
-                                  <Button
-                                    size="lg"
-                                    onClick={() => updateFilaStatus(item.id, 'preparando')}
-                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-blue-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
-                                  >
-                                    <Flame className="w-4 h-4 text-blue-200 flex-shrink-0" />
-                                    <span className="truncate">Iniciar Preparo</span>
-                                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
-                                  </Button>
-                                )}
-
-                                {item.status === 'preparando' && (
-                                  <Button
-                                    size="lg"
-                                    onClick={() => updateFilaStatus(item.id, 'pronto')}
-                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
-                                  >
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-200 flex-shrink-0" />
-                                    <span className="truncate">Marcar Pronto</span>
-                                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
-                                  </Button>
-                                )}
-
-                                {item.status === 'pronto' && (
-                                  <Button
-                                    size="lg"
-                                    onClick={() => updateFilaStatus(item.id, 'entregue')}
-                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
-                                  >
-                                    <CheckCheck className="w-4 h-4 text-stone-950 flex-shrink-0" />
-                                    <span className="truncate">Marcar Entregue</span>
-                                  </Button>
-                                )}
-
-                                {item.status === 'entregue' && (
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-stone-400 py-2">
-                                    <Check className="w-4 h-4 text-emerald-400" />
-                                    <span>Entregue</span>
-                                  </div>
                                 )}
                               </div>
                             </div>
