@@ -26,15 +26,22 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const { session } = useAuth()
-  const from = (location.state as any)?.from?.pathname || '/'
+  const { session, role } = useAuth()
+  const from = (location.state as any)?.from?.pathname
+
+  // Determina rota padrão de destino conforme perfil: Cozinha vai direto para /kds
+  const targetDestination = React.useMemo(() => {
+    if (role === 'Cozinha') return '/kds'
+    if (from && from !== '/login') return from
+    return '/'
+  }, [role, from])
 
   // Se o usuário já estiver autenticado e acessar /login, redirecionar para a tela pretendida
   React.useEffect(() => {
     if (!authLoading && session) {
-      navigate(from, { replace: true })
+      navigate(targetDestination, { replace: true })
     }
-  }, [authLoading, session, navigate, from])
+  }, [authLoading, session, navigate, targetDestination])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,7 +57,9 @@ export default function Login() {
           setErrorMessage(error.message || 'Erro ao efetuar login. Tente novamente.')
         }
       } else {
-        navigate(from, { replace: true })
+        // Redirecionamento após login bem sucedido: se for Cozinha, cai direto em /kds
+        const isKitchen = email.trim().toLowerCase().includes('cozinha')
+        navigate(isKitchen ? '/kds' : targetDestination, { replace: true })
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro inesperado na autenticação.')
@@ -170,7 +179,7 @@ export default function Login() {
               <span className="text-[10px] text-stone-500">senha: rachide123</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => fillQuickAccount('gerente@rachide.bar', 'rachide123')}
@@ -202,6 +211,17 @@ export default function Login() {
                   Garçom
                 </div>
                 <div className="text-[10px] text-stone-400 truncate mt-0.5">Comandas e fila</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fillQuickAccount('cozinha@rachide.bar', 'rachide123')}
+                className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-all group"
+              >
+                <div className="text-[11px] font-bold text-orange-400 group-hover:text-orange-300">
+                  Cozinha
+                </div>
+                <div className="text-[10px] text-stone-400 truncate mt-0.5">KDS Dedicado</div>
               </button>
             </div>
           </div>

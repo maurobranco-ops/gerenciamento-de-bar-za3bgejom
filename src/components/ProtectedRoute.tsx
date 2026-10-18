@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Loader2 } from 'lucide-react'
 
 export function ProtectedRoute() {
-  const { session, loading } = useAuth()
+  const { session, loading, role } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -17,6 +17,12 @@ export function ProtectedRoute() {
 
   if (!session) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Se o usuário possui perfil Cozinha, seu acesso é EXCLUSIVO à tela KDS (/kds)
+  // Caso tente acessar qualquer outra rota protegida, redireciona diretamente para /kds
+  if (role === 'Cozinha' && location.pathname !== '/kds') {
+    return <Navigate to="/kds" replace />
   }
 
   return <Outlet />

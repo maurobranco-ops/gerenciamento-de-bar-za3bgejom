@@ -4,7 +4,7 @@ export interface ManagedUser {
   id: string
   email: string
   nome_exibicao: string
-  perfil: 'garcom' | 'caixa' | 'gerente'
+  perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha'
   ativo: boolean
   created_at?: string
   last_sign_in_at?: string
@@ -51,7 +51,7 @@ export const UserService = {
     nome: string
     email: string
     password: string
-    perfil: 'garcom' | 'caixa' | 'gerente'
+    perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha'
   }): Promise<{ sucesso: boolean; id: string; email: string }> {
     try {
       const { data, error } = await supabase.functions.invoke('admin-users', {
@@ -96,7 +96,7 @@ export const UserService = {
    */
   async updateUserRole(payload: {
     userId: string
-    perfil: 'garcom' | 'caixa' | 'gerente'
+    perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha'
     nome?: string
     ativo?: boolean
   }): Promise<{ sucesso: boolean }> {

@@ -22,6 +22,7 @@ import {
   PackagePlus,
   Settings,
   Presentation,
+  Tv,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { useAuth } from '../hooks/use-auth'
@@ -60,6 +61,15 @@ const NAV_ITEMS: NavItem[] = [
     path: '/comandas',
     icon: ClipboardList,
     roles: ['Garçom', 'Caixa', 'Gerente'],
+  },
+  {
+    title: 'KDS Cozinha & Bar',
+    path: '/kds',
+    icon: Tv,
+    roles: ['Cozinha', 'Gerente'],
+    badgeCount: (ctx) =>
+      ctx.filaCozinha?.filter((i: any) => i.status === 'pendente' || i.status === 'preparando')
+        .length || 0,
   },
   {
     title: 'Fila Cozinha & Bar',
@@ -451,7 +461,7 @@ export default function Layout() {
                     variant="outline"
                     className="bg-stone-800 text-stone-300 border-stone-700 text-[10px]"
                   >
-                    v1.4.1
+                    v1.5.0
                   </Badge>
                 </div>
                 <div className="text-sm font-bold text-amber-400 flex items-center gap-1.5 mt-1">
@@ -600,8 +610,8 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Rachide Bar v1.4.1 — Gestão Gastronômica, KDS Térmico, Acompanhamento ao Vivo & Pedidos
-            On-line
+            Rachide Bar v1.5.0 — Gestão Gastronômica, KDS Kanban de Cozinha, Acompanhamento ao Vivo
+            & Pedidos On-line
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

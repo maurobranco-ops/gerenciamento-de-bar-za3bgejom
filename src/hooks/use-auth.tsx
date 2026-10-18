@@ -7,7 +7,7 @@ export interface UserProfile {
   id: string
   email: string
   nome_exibicao: string
-  perfil: 'garcom' | 'caixa' | 'gerente'
+  perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha'
   ativo: boolean
 }
 
@@ -34,6 +34,7 @@ export const useAuth = () => {
 const mapPerfilToRole = (perfil?: string | null): UserRole => {
   if (perfil === 'gerente') return 'Gerente'
   if (perfil === 'caixa') return 'Caixa'
+  if (perfil === 'cozinha') return 'Cozinha'
   return 'Garçom'
 }
 

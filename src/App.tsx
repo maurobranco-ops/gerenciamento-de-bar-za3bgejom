@@ -15,6 +15,7 @@ import FluxoCaixa from './pages/FluxoCaixa'
 import DRE from './pages/DRE'
 import Fiscal from './pages/Fiscal'
 import FilaCozinha from './pages/FilaCozinha'
+import KdsCozinha from './pages/KdsCozinha'
 import ProdutosAdmin from './pages/ProdutosAdmin'
 import MesasConfig from './pages/MesasConfig'
 import PedidoOnline from './pages/PedidoOnline'
@@ -49,6 +50,7 @@ export function App() {
                   <Route path="dre" element={<DRE />} />
                   <Route path="fiscal" element={<Fiscal />} />
                   <Route path="fila-cozinha" element={<FilaCozinha />} />
+                  <Route path="kds" element={<KdsCozinha />} />
                   <Route path="produtos-admin" element={<ProdutosAdmin />} />
                   <Route path="mesas-config" element={<MesasConfig />} />
                   <Route path="usuarios" element={<Usuarios />} />

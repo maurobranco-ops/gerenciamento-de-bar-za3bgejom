@@ -257,9 +257,12 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const isUserAuthenticated = Boolean(user)
               const isOperacionalKitchenRoute =
                 currentPath === '/fila-cozinha' || currentPath.startsWith('/fila-cozinha/')
+              const isOperacionalKdsRoute =
+                currentPath === '/kds' || currentPath.startsWith('/kds/')
               const isOperacionalComandasRoute =
                 currentPath === '/comandas' || currentPath.startsWith('/comandas/')
-              const isOperacionalScreen = isOperacionalKitchenRoute || isOperacionalComandasRoute
+              const isOperacionalScreen =
+                isOperacionalKitchenRoute || isOperacionalKdsRoute || isOperacionalComandasRoute
 
               // Dispara som de novo pedido apenas se logado, na tela operacional e com som ativo
               const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
@@ -830,7 +833,10 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Bip sonoro interno agradável ao marcar pedido como pronto (somente Fila de Cozinha logada)
     const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
     const isKitchenRoute =
-      currentPath === '/fila-cozinha' || currentPath.startsWith('/fila-cozinha/')
+      currentPath === '/fila-cozinha' ||
+      currentPath.startsWith('/fila-cozinha/') ||
+      currentPath === '/kds' ||
+      currentPath.startsWith('/kds/')
     if (status === 'pronto' && soundEnabled && Boolean(user) && isKitchenRoute) {
       SoundEffects.playSuccessAlert()
     }

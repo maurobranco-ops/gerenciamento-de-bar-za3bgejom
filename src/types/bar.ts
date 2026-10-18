@@ -1,4 +1,4 @@
-export type UserRole = 'Garçom' | 'Caixa' | 'Gerente'
+export type UserRole = 'Garçom' | 'Caixa' | 'Gerente' | 'Cozinha'
 
 export type TableStatus = 'Livre' | 'Ocupada' | 'Aguardando Pagamento' | 'Fechada'
 

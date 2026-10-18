@@ -909,17 +909,26 @@ export const BarService = {
   },
 
   async updateFilaStatus(id: string, status: KitchenStatus): Promise<void> {
-    const { error } = await db
-      .from('fila_cozinha')
-      .update({
-        status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+    // Tenta primeiro a RPC segura atualizar_status_item_fila que valida o perfil no banco
+    const { error: rpcErr } = await db.rpc('atualizar_status_item_fila', {
+      p_item_id: id,
+      p_novo_status: status,
+    })
 
-    if (error) {
-      console.error('Erro ao atualizar status da fila de cozinha:', error)
-      throw error
+    if (rpcErr) {
+      console.warn('RPC atualizar_status_item_fila fallback direto:', rpcErr)
+      const { error } = await db
+        .from('fila_cozinha')
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+
+      if (error) {
+        console.error('Erro ao atualizar status da fila de cozinha:', error)
+        throw error
+      }
     }
   },
 

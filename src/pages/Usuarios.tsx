@@ -13,6 +13,7 @@ import {
   RefreshCw,
   BadgeAlert,
   Sparkles,
+  ChefHat,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { UserService, ManagedUser } from '@/services/userService'
@@ -50,12 +51,14 @@ export default function Usuarios() {
   const [createNome, setCreateNome] = useState('')
   const [createEmail, setCreateEmail] = useState('')
   const [createSenha, setCreateSenha] = useState('')
-  const [createPerfil, setCreatePerfil] = useState<'garcom' | 'caixa' | 'gerente'>('garcom')
+  const [createPerfil, setCreatePerfil] = useState<'garcom' | 'caixa' | 'gerente' | 'cozinha'>(
+    'garcom',
+  )
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false)
 
   // Formulário de Alteração de Perfil
   const [editNome, setEditNome] = useState('')
-  const [editPerfil, setEditPerfil] = useState<'garcom' | 'caixa' | 'gerente'>('garcom')
+  const [editPerfil, setEditPerfil] = useState<'garcom' | 'caixa' | 'gerente' | 'cozinha'>('garcom')
   const [editAtivo, setEditAtivo] = useState(true)
   const [isSubmittingRole, setIsSubmittingRole] = useState(false)
 
@@ -102,6 +105,7 @@ export default function Usuarios() {
       gerentes: users.filter((u) => u.perfil === 'gerente').length,
       caixas: users.filter((u) => u.perfil === 'caixa').length,
       garcons: users.filter((u) => u.perfil === 'garcom').length,
+      cozinha: users.filter((u) => u.perfil === 'cozinha').length,
     }
   }, [users])
 
@@ -273,6 +277,12 @@ export default function Usuarios() {
             Caixa
           </Badge>
         )
+      case 'cozinha':
+        return (
+          <Badge className="bg-orange-500/15 text-orange-400 border-orange-500/40 text-[10px] font-bold">
+            Cozinha
+          </Badge>
+        )
       default:
         return (
           <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/40 text-[10px] font-bold">
@@ -302,8 +312,8 @@ export default function Usuarios() {
                 </Badge>
               </h2>
               <p className="text-xs text-stone-400 mt-1">
-                Cadastre funcionários, defina permissões de acesso (Garçom, Caixa ou Gerente) e
-                redefina senhas com segurança via Supabase Auth.
+                Cadastre funcionários, defina permissões de acesso (Garçom, Caixa, Gerente ou
+                Cozinha) e redefina senhas com segurança via Supabase Auth.
               </p>
             </div>
           </div>
@@ -333,15 +343,15 @@ export default function Usuarios() {
       </div>
 
       {/* Cards de Resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-xl bg-[#292524] border border-[#44403C] flex items-center justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
-              Total de Contas
+              Total Contas
             </div>
             <div className="text-xl font-black text-stone-100 mt-0.5">{stats.total}</div>
           </div>
-          <Users className="w-6 h-6 text-stone-500" />
+          <Users className="w-5 h-5 text-stone-500" />
         </div>
 
         <div className="p-3.5 rounded-xl bg-[#292524] border border-[#44403C] flex items-center justify-between">
@@ -351,27 +361,37 @@ export default function Usuarios() {
             </div>
             <div className="text-xl font-black text-amber-400 mt-0.5">{stats.gerentes}</div>
           </div>
-          <Shield className="w-6 h-6 text-amber-500/60" />
+          <Shield className="w-5 h-5 text-amber-500/60" />
         </div>
 
         <div className="p-3.5 rounded-xl bg-[#292524] border border-[#44403C] flex items-center justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-blue-400 font-semibold">
-              Operadores Caixa
+              Caixas
             </div>
             <div className="text-xl font-black text-blue-400 mt-0.5">{stats.caixas}</div>
           </div>
-          <Sparkles className="w-6 h-6 text-blue-500/60" />
+          <Sparkles className="w-5 h-5 text-blue-500/60" />
         </div>
 
         <div className="p-3.5 rounded-xl bg-[#292524] border border-[#44403C] flex items-center justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-emerald-400 font-semibold">
-              Garçons de Salão
+              Garçons
             </div>
             <div className="text-xl font-black text-emerald-400 mt-0.5">{stats.garcons}</div>
           </div>
-          <CheckCircle2 className="w-6 h-6 text-emerald-500/60" />
+          <CheckCircle2 className="w-5 h-5 text-emerald-500/60" />
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-[#292524] border border-[#44403C] flex items-center justify-between col-span-2 sm:col-span-1">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-orange-400 font-semibold">
+              Cozinha / Bar
+            </div>
+            <div className="text-xl font-black text-orange-400 mt-0.5">{stats.cozinha}</div>
+          </div>
+          <ChefHat className="w-5 h-5 text-orange-500/60" />
         </div>
       </div>
 
@@ -393,6 +413,7 @@ export default function Usuarios() {
             { id: 'gerente', label: 'Gerentes' },
             { id: 'caixa', label: 'Caixas' },
             { id: 'garcom', label: 'Garçons' },
+            { id: 'cozinha', label: 'Cozinha' },
           ].map((item) => (
             <button
               key={item.id}
@@ -542,8 +563,10 @@ export default function Usuarios() {
             <code className="text-amber-400">caixa@rachide.bar</code> (senha:{' '}
             <code className="text-amber-400">rachide123</code>)<br />• Garçom:{' '}
             <code className="text-amber-400">garcom@rachide.bar</code> (senha:{' '}
+            <code className="text-amber-400">rachide123</code>)<br />• Cozinha:{' '}
+            <code className="text-amber-400">cozinha@rachide.bar</code> (senha:{' '}
             <code className="text-amber-400">rachide123</code>)
-          </span>
+          </span>{' '}
         </div>
       </div>
 
@@ -616,13 +639,19 @@ export default function Usuarios() {
               <Label className="text-stone-300 font-semibold mb-1 block">Perfil de Acesso *</Label>
               <select
                 value={createPerfil}
-                onChange={(e) => setCreatePerfil(e.target.value as 'garcom' | 'caixa' | 'gerente')}
+                onChange={(e) =>
+                  setCreatePerfil(e.target.value as 'garcom' | 'caixa' | 'gerente' | 'cozinha')
+                }
                 className="w-full bg-[#1C1917] border border-[#44403C] rounded-lg px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
               >
                 <option value="garcom">
                   Garçom (Lançar comandas, ver cardápio, fila de pedidos)
                 </option>
                 <option value="caixa">Caixa (Comandas, fila, fechamento e fluxo de caixa)</option>
+                <option value="cozinha">
+                  Cozinha (Acesso exclusivo à tela KDS: fila de pedidos, cronômetro e avanço de
+                  status)
+                </option>
                 <option value="gerente">
                   Gerente (Acesso total, cadastros, DRE, fiscal e equipe)
                 </option>
@@ -678,11 +707,14 @@ export default function Usuarios() {
                 <Label className="text-stone-300 font-semibold mb-1 block">Perfil / Papel *</Label>
                 <select
                   value={editPerfil}
-                  onChange={(e) => setEditPerfil(e.target.value as 'garcom' | 'caixa' | 'gerente')}
+                  onChange={(e) =>
+                    setEditPerfil(e.target.value as 'garcom' | 'caixa' | 'gerente' | 'cozinha')
+                  }
                   className="w-full bg-[#1C1917] border border-[#44403C] rounded-lg px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
                 >
                   <option value="garcom">Garçom</option>
                   <option value="caixa">Caixa</option>
+                  <option value="cozinha">Cozinha (KDS Exclusivo)</option>
                   <option value="gerente">Gerente</option>
                 </select>
                 {currentAuthUser?.id === selectedUser.id && (
