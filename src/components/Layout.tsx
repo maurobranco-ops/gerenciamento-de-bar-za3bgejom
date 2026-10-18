@@ -176,7 +176,11 @@ export default function Layout() {
   const currentNav = NAV_ITEMS.find((item) => item.path === location.pathname)
   const currentTitle = currentNav?.title || 'Rachide Bar'
 
-  // Filter items by role
+  // Filter items by role: para o perfil Cozinha, esconde todos os itens bloqueados da sidebar e exibe somente o KDS Cozinha & Bar
+  const isCozinhaRole = role === 'Cozinha'
+  const sidebarNavItems = isCozinhaRole
+    ? NAV_ITEMS.filter((item) => item.roles.includes('Cozinha'))
+    : NAV_ITEMS
   const visibleNavItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
 
   // Search filtered products
@@ -486,7 +490,7 @@ export default function Layout() {
 
           {/* Navigation Links */}
           <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-            {NAV_ITEMS.map((item) => {
+            {sidebarNavItems.map((item) => {
               const Icon = item.icon
               const hasAccess = item.roles.includes(role)
               const isActive = location.pathname === item.path

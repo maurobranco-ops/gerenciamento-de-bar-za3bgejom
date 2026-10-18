@@ -25,5 +25,7 @@ export function ProtectedRoute() {
     return <Navigate to="/kds" replace />
   }
 
+  // Se o usuário possui perfil Garçom/Caixa/Gerente e porventura estiver na raiz ou outra tela, segue normal
+
   return <Outlet />
 }

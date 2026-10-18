@@ -181,15 +181,23 @@ export default function KdsCozinha() {
 
   // Cronômetro de espera: cálculo de minutos e classe de cor
   // Normal (0-10 min) -> Amarelo (10-20 min) -> Vermelho (> 20 min)
+  // Salvaguarda: quando passar de 24h (1440 min), exibe "Item antigo" e data de entrada em vez de tempos absurdos (ex: 165h)
   const getWaitingTimeData = (createdAt: string) => {
     try {
-      const created = new Date(createdAt).getTime()
+      const createdDate = new Date(createdAt)
+      const created = createdDate.getTime()
       const diffMs = Math.max(0, nowTimestamp - created)
       const diffMins = Math.floor(diffMs / 60000)
       const diffSecs = Math.floor((diffMs % 60000) / 1000)
 
       let label = ''
-      if (diffMins < 1) {
+      let isOldItem = false
+
+      if (diffMins >= 1440) {
+        // Mais de 24 horas: salvaguarda para evitar números gigantes na UI
+        isOldItem = true
+        label = 'Item antigo'
+      } else if (diffMins < 1) {
         label = `${diffSecs}s`
       } else if (diffMins < 60) {
         label = `${diffMins}m ${diffSecs}s`
@@ -202,7 +210,9 @@ export default function KdsCozinha() {
       let severityClass = 'bg-stone-800/90 text-stone-200 border-stone-600'
       let isUrgent = false
 
-      if (diffMins >= 20) {
+      if (isOldItem) {
+        severityClass = 'bg-stone-800/95 text-stone-400 border-stone-600 font-medium'
+      } else if (diffMins >= 20) {
         severityClass = 'bg-red-500/20 text-red-300 border-red-500/60 animate-pulse font-extrabold'
         isUrgent = true
       } else if (diffMins >= 10) {
@@ -216,6 +226,7 @@ export default function KdsCozinha() {
         diffMins,
         severityClass,
         isUrgent,
+        isOldItem,
       }
     } catch {
       return {
@@ -223,6 +234,7 @@ export default function KdsCozinha() {
         diffMins: 0,
         severityClass: 'bg-stone-800 text-stone-400 border-stone-700',
         isUrgent: false,
+        isOldItem: false,
       }
     }
   }
@@ -230,6 +242,19 @@ export default function KdsCozinha() {
   const formatHoraPedido = (createdAt: string) => {
     try {
       const date = new Date(createdAt)
+      const now = new Date(nowTimestamp)
+      const diffHours = Math.abs(now.getTime() - date.getTime()) / 3600000
+
+      // Se passou de 24 horas, exibe dia/mês além da hora
+      if (diffHours >= 24) {
+        return date.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      }
+
       return date.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
@@ -439,8 +464,9 @@ export default function KdsCozinha() {
       </header>
 
       {/* QUADRO KANBAN EM COLUNAS: PENDENTE | PREPARANDO | PRONTO | ENTREGUE */}
-      <main className="flex-1 pb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+      {/* Garante rolagem horizontal fluida quando as 4 colunas não couberem na viewport */}
+      <main className="flex-1 pb-6 overflow-x-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-start min-w-[300px] lg:min-w-[960px] xl:min-w-0">
           {KANBAN_COLUMNS.map((col) => {
             const ColIcon = col.icon
             const itemsInCol = filteredItems.filter((i) => i.status === col.key)
@@ -449,7 +475,7 @@ export default function KdsCozinha() {
             return (
               <section
                 key={col.key}
-                className={`rounded-2xl border transition-all flex flex-col min-h-[580px] bg-[#1C1917] ${
+                className={`rounded-2xl border transition-all flex flex-col min-h-[580px] bg-[#1C1917] min-w-0 ${
                   col.color
                 } ${isEntregueCol && collapsedEntregue ? 'lg:min-h-[140px]' : ''}`}
               >
@@ -609,29 +635,30 @@ export default function KdsCozinha() {
                               )}
                             </div>
 
-                            {/* RODAPÉ DO CARTÃO: BOTÕES DE AVANÇO GIGANTES PARA TOQUE FÁCIL */}
-                            <div className="pt-3 border-t border-[#38332E] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                            {/* RODAPÉ DO CARTÃO: BOTÕES DE AVANÇO ADAPTATIVOS E TOUCH-FIRST */}
+                            {/* Layout com flex-wrap/stacking para NUNCA vazar a largura do cartão */}
+                            <div className="pt-3 border-t border-[#38332E] flex flex-wrap items-center justify-between gap-2">
                               {/* Botão Imprimir Ticket Térmico 80mm */}
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handlePrintTicket(item)}
-                                className="h-10 px-3 bg-[#1C1917] hover:bg-[#38332E] border-[#44403C] text-stone-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95"
+                                className="h-10 px-3 bg-[#1C1917] hover:bg-[#38332E] border-[#44403C] text-stone-300 hover:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 flex-shrink-0"
                                 title="Imprimir ticket para cozinha"
                               >
-                                <Printer className="w-4 h-4 text-amber-500" />
+                                <Printer className="w-4 h-4 text-amber-500 flex-shrink-0" />
                                 <span>Ticket</span>
                               </Button>
 
-                              {/* Ações de avanço de status */}
-                              <div className="flex items-center gap-2 flex-1 justify-end">
+                              {/* Ações de avanço de status com suporte total a encolhimento e quebra segura */}
+                              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end flex-wrap sm:flex-nowrap">
                                 {/* Botão de retrocesso simples */}
                                 {item.status === 'preparando' && (
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => updateFilaStatus(item.id, 'pendente')}
-                                    className="h-11 px-3 text-xs text-stone-400 hover:text-stone-200 rounded-xl"
+                                    className="h-10 px-2.5 text-xs text-stone-400 hover:text-stone-200 rounded-xl flex-shrink-0"
                                     title="Voltar para Pendente"
                                   >
                                     Voltar
@@ -642,23 +669,23 @@ export default function KdsCozinha() {
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => updateFilaStatus(item.id, 'preparando')}
-                                    className="h-11 px-3 text-xs text-stone-400 hover:text-stone-200 rounded-xl"
+                                    className="h-10 px-2.5 text-xs text-stone-400 hover:text-stone-200 rounded-xl flex-shrink-0"
                                     title="Voltar para Preparando"
                                   >
                                     Voltar
                                   </Button>
                                 )}
 
-                                {/* BOTÕES GIGANTES DE UM TOQUE: */}
+                                {/* BOTÕES GIGANTES DE UM TOQUE: w-full em telas estreitas, min-w-0 e flex-1 */}
                                 {item.status === 'pendente' && (
                                   <Button
                                     size="lg"
                                     onClick={() => updateFilaStatus(item.id, 'preparando')}
-                                    className="flex-1 sm:flex-initial h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base shadow-lg shadow-blue-950/50 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-blue-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
                                   >
-                                    <Flame className="w-5 h-5 text-blue-200" />
-                                    <span>Iniciar Preparo</span>
-                                    <ArrowRight className="w-4 h-4" />
+                                    <Flame className="w-4 h-4 text-blue-200 flex-shrink-0" />
+                                    <span className="truncate">Iniciar Preparo</span>
+                                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
                                   </Button>
                                 )}
 
@@ -666,11 +693,11 @@ export default function KdsCozinha() {
                                   <Button
                                     size="lg"
                                     onClick={() => updateFilaStatus(item.id, 'pronto')}
-                                    className="flex-1 sm:flex-initial h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm sm:text-base shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
                                   >
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-200" />
-                                    <span>Marcar Pronto</span>
-                                    <ArrowRight className="w-4 h-4" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+                                    <span className="truncate">Marcar Pronto</span>
+                                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
                                   </Button>
                                 )}
 
@@ -678,17 +705,17 @@ export default function KdsCozinha() {
                                   <Button
                                     size="lg"
                                     onClick={() => updateFilaStatus(item.id, 'entregue')}
-                                    className="flex-1 sm:flex-initial h-12 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-sm sm:text-base shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                    className="w-full sm:w-auto flex-1 min-w-0 h-11 px-3 sm:px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-950/50 flex items-center justify-center gap-1.5 active:scale-95 transition-all truncate"
                                   >
-                                    <CheckCheck className="w-5 h-5 text-stone-950" />
-                                    <span>Marcar Entregue</span>
+                                    <CheckCheck className="w-4 h-4 text-stone-950 flex-shrink-0" />
+                                    <span className="truncate">Marcar Entregue</span>
                                   </Button>
                                 )}
 
                                 {item.status === 'entregue' && (
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-stone-400 py-2">
                                     <Check className="w-4 h-4 text-emerald-400" />
-                                    <span>Pedido Entregue</span>
+                                    <span>Entregue</span>
                                   </div>
                                 )}
                               </div>

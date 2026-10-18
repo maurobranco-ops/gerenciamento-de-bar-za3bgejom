@@ -39,9 +39,11 @@ export default function Login() {
   // Se o usuário já estiver autenticado e acessar /login, redirecionar para a tela pretendida
   React.useEffect(() => {
     if (!authLoading && session) {
-      navigate(targetDestination, { replace: true })
+      // Se for Cozinha ou se targetDestination for /kds, vai direto para /kds
+      const dest = role === 'Cozinha' ? '/kds' : targetDestination
+      navigate(dest, { replace: true })
     }
-  }, [authLoading, session, navigate, targetDestination])
+  }, [authLoading, session, navigate, targetDestination, role])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
