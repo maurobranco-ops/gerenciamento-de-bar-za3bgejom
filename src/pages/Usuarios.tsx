@@ -576,12 +576,16 @@ export default function Usuarios() {
             </div>
 
             <div>
-              <Label className="text-stone-300 font-semibold mb-1 block">E-mail de Login *</Label>
+              <Label className="text-stone-300 font-semibold mb-1 block">
+                E-mail corporativo *
+              </Label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-2.5 text-stone-500" />
                 <Input
                   required
                   type="email"
+                  name="new-user-email"
+                  autoComplete="off"
                   value={createEmail}
                   onChange={(e) => setCreateEmail(e.target.value)}
                   placeholder="beatriz@rachide.bar"
@@ -599,6 +603,8 @@ export default function Usuarios() {
                 <Input
                   required
                   type="password"
+                  name="new-password"
+                  autoComplete="new-password"
                   value={createSenha}
                   onChange={(e) => setCreateSenha(e.target.value)}
                   placeholder="••••••••"
@@ -606,7 +612,6 @@ export default function Usuarios() {
                 />
               </div>
             </div>
-
             <div>
               <Label className="text-stone-300 font-semibold mb-1 block">Perfil de Acesso *</Label>
               <select
@@ -750,6 +755,8 @@ export default function Usuarios() {
                   <Input
                     required
                     type="password"
+                    name="new-password"
+                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••"
@@ -767,6 +774,8 @@ export default function Usuarios() {
                   <Input
                     required
                     type="password"
+                    name="confirm-new-password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"

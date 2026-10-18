@@ -110,6 +110,8 @@ export default function Login() {
                 <Mail className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
                 <Input
                   type="email"
+                  name="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ex: gerente@rachide.bar"
@@ -128,6 +130,8 @@ export default function Login() {
                 <Lock className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
                 <Input
                   type="password"
+                  name="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
