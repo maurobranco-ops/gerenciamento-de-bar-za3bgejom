@@ -293,43 +293,45 @@ export default function Comandas() {
       </div>
 
       {/* Visual Table Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 pb-6">
         {visibleTables.map((cmd) => {
-          const subtotal = computeSubtotal(cmd)
           const totalWithService = computeTotal(cmd)
 
           return (
             <div
               key={cmd.tableNumber}
               onClick={() => handleTableClick(cmd)}
-              className={`p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex flex-col items-center justify-between text-center min-h-[190px] select-none ${getTableCircleClass(
+              className={`p-3.5 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex flex-col items-center justify-between text-center min-h-[170px] sm:min-h-[190px] select-none ${getTableCircleClass(
                 cmd.status,
               )}`}
             >
               {/* Circle table representation */}
-              <div className="w-16 h-16 rounded-full border-2 border-current flex items-center justify-center font-black text-2xl shadow-inner mb-2 bg-[#1C1917]/50">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-current flex items-center justify-center font-black text-xl sm:text-2xl shadow-inner mb-1.5 sm:mb-2 bg-[#1C1917]/50">
                 {cmd.tableNumber}
               </div>
 
-              <div>
-                <div className="font-bold text-sm text-stone-100 truncate max-w-[140px]">
+              <div className="w-full px-1">
+                <div
+                  className="font-bold text-xs sm:text-sm text-stone-100 truncate w-full"
+                  title={cmd.clientName || `Mesa ${cmd.tableNumber}`}
+                >
                   {cmd.clientName || `Mesa ${cmd.tableNumber}`}
                 </div>
                 {cmd.status !== 'Livre' ? (
-                  <div className="flex items-center justify-center gap-1 text-[11px] text-stone-400 mt-0.5">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>{cmd.guestCount} pessoas</span>
+                  <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] text-stone-400 mt-0.5">
+                    <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span>{cmd.guestCount} pess.</span>
                   </div>
                 ) : (
                   cmd.capacity && (
-                    <div className="flex items-center justify-center gap-1 text-[11px] text-stone-500 mt-0.5">
+                    <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] text-stone-500 mt-0.5">
                       <Users className="w-3 h-3" />
-                      <span>{cmd.capacity} lugares</span>
+                      <span>{cmd.capacity} lug.</span>
                     </div>
                   )
                 )}
               </div>
-              <div className="mt-2 w-full pt-2 border-t border-current/20">
+              <div className="mt-1.5 sm:mt-2 w-full pt-1.5 sm:pt-2 border-t border-current/20">
                 {cmd.status === 'Livre' ? (
                   <span className="text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1">
                     <Plus className="w-3.5 h-3.5" /> Abrir Mesa
@@ -421,16 +423,18 @@ export default function Comandas() {
       {/* Modal: Detalhes da Comanda Aberta */}
       {currentComanda && (
         <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
-          <DialogContent className="max-w-2xl bg-[#292524] border-[#44403C] text-stone-100 p-6 max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="border-b border-[#44403C] pb-4">
+          <DialogContent className="w-[calc(100%-1rem)] sm:max-w-2xl bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 max-h-[92dvh] overflow-y-auto pb-24 sm:pb-8">
+            <DialogHeader className="border-b border-[#44403C] pb-3 sm:pb-4 pr-6 sm:pr-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-xl font-black text-stone-100 flex items-center gap-2">
-                    Mesa {currentComanda.tableNumber}
+                  <DialogTitle className="text-lg sm:text-xl font-black text-stone-100 flex items-center gap-2 flex-wrap">
+                    <span>Mesa {currentComanda.tableNumber}</span>
                     {getStatusBadge(currentComanda.status)}
                   </DialogTitle>
-                  <p className="text-xs text-stone-400 mt-1 flex items-center gap-2">
-                    <span>Cliente: {currentComanda.clientName || 'Consumidor'}</span>
+                  <p className="text-xs text-stone-400 mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <span className="font-medium text-stone-300">
+                      Cliente: {currentComanda.clientName || 'Consumidor'}
+                    </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <Users className="w-3.5 h-3.5" />
@@ -451,10 +455,12 @@ export default function Comandas() {
             </DialogHeader>
 
             {/* Items List in Comanda */}
-            <div className="space-y-4 my-3">
+            <div className="space-y-4 my-2 sm:my-3">
               <div className="flex items-center justify-between text-xs font-semibold text-stone-400 uppercase tracking-wider">
                 <span>Itens Consumidos</span>
-                <span>{currentComanda.items.length} produto(s)</span>
+                <span className="text-amber-400 font-bold">
+                  {currentComanda.items.length} produto(s)
+                </span>
               </div>
 
               {currentComanda.items.length === 0 ? (
@@ -462,60 +468,69 @@ export default function Comandas() {
                   Nenhum item lançado ainda. Busque e adicione produtos abaixo.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-2.5">
                   {currentComanda.items.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-between"
+                      className="p-3 sm:p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-amber-500/30 transition-colors"
                     >
-                      <div className="flex-1 mr-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-stone-100">{item.name}</span>
+                      {/* Linha superior (ou coluna esquerda): nome, badges, preço unitário e obs */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-sm text-stone-100 break-words leading-tight">
+                            {item.name}
+                          </span>
                           {item.origemOnline && (
                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-bold">
                               Pedido On-line
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-stone-400 tabular-nums">
+                        <div className="text-xs text-stone-400 tabular-nums mt-0.5">
                           R$ {item.price.toFixed(2)} cada
                         </div>
                         {item.observations && (
-                          <div className="text-[11px] text-amber-400/90 italic mt-0.5">
+                          <div className="text-[11px] text-amber-400/90 italic mt-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
                             Obs: {item.observations}
                           </div>
                         )}
                       </div>
 
-                      {/* Stepper +/- */}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            updateComandaItemQuantity(currentComanda.tableNumber, item.id, -1)
-                          }
-                          className="h-7 w-7 p-0 bg-[#292524] border-[#44403C] text-stone-300 hover:text-white"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="font-extrabold text-sm tabular-nums w-6 text-center text-stone-100">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            updateComandaItemQuantity(currentComanda.tableNumber, item.id, 1)
-                          }
-                          className="h-7 w-7 p-0 bg-[#292524] border-[#44403C] text-stone-300 hover:text-white"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
+                      {/* Linha inferior no mobile: Stepper de quantidade e subtotal do produto */}
+                      <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#292524]">
+                        {/* Stepper +/- */}
+                        <div className="flex items-center gap-1.5 bg-[#292524] p-0.5 rounded-lg border border-[#44403C]">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              updateComandaItemQuantity(currentComanda.tableNumber, item.id, -1)
+                            }
+                            className="h-8 w-8 p-0 text-stone-300 hover:text-white hover:bg-[#44403C]"
+                            aria-label={`Diminuir quantidade de ${item.name}`}
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </Button>
+                          <span className="font-extrabold text-sm tabular-nums min-w-[24px] text-center text-stone-100">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              updateComandaItemQuantity(currentComanda.tableNumber, item.id, 1)
+                            }
+                            className="h-8 w-8 p-0 text-stone-300 hover:text-white hover:bg-[#44403C]"
+                            aria-label={`Aumentar quantidade de ${item.name}`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
 
-                      <div className="w-24 text-right font-bold text-amber-400 tabular-nums text-sm ml-3">
-                        R$ {(item.price * item.quantity).toFixed(2)}
+                        {/* Valor total do item */}
+                        <div className="text-right font-black text-amber-400 tabular-nums text-sm sm:w-24">
+                          R$ {(item.price * item.quantity).toFixed(2)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -523,35 +538,35 @@ export default function Comandas() {
               )}
 
               {/* Add Item Quick Search */}
-              <div className="p-3 rounded-xl bg-[#1C1917]/70 border border-[#44403C] space-y-2">
+              <div className="p-3 sm:p-4 rounded-xl bg-[#1C1917]/70 border border-[#44403C] space-y-2.5">
                 <div className="text-xs font-semibold text-stone-300 flex items-center gap-1.5">
                   <Search className="w-3.5 h-3.5 text-amber-500" />
-                  Adicionar Item do Cardápio à Mesa
+                  <span>Adicionar Item do Cardápio à Mesa</span>
                 </div>
                 <Input
                   value={searchItemQuery}
                   onChange={(e) => setSearchItemQuery(e.target.value)}
                   placeholder="Pesquisar por Heineken, bolinho, gin..."
-                  className="bg-[#292524] border-[#44403C] text-xs text-stone-100 h-8"
+                  className="bg-[#292524] border-[#44403C] text-xs text-stone-100 h-9"
                 />
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-36 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 max-h-48 overflow-y-auto">
                   {filteredMenuItems.map((prod) => (
                     <button
                       key={prod.id}
                       type="button"
                       disabled={prod.stock <= 0}
                       onClick={() => addItemToComanda(currentComanda.tableNumber, prod, 1)}
-                      className="p-2 rounded-lg bg-[#292524] hover:bg-[#44403C] border border-[#44403C] text-left transition-colors flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed group"
+                      className="p-2.5 rounded-lg bg-[#292524] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-colors flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed group"
                     >
-                      <span className="font-semibold text-xs text-stone-200 truncate group-hover:text-amber-400">
+                      <span className="font-semibold text-xs text-stone-200 line-clamp-1 group-hover:text-amber-400">
                         {prod.name}
                       </span>
-                      <div className="flex items-center justify-between mt-1 text-[11px]">
+                      <div className="flex items-center justify-between mt-1.5 text-[11px]">
                         <span className="text-amber-500 font-bold tabular-nums">
                           R$ {prod.price.toFixed(2)}
                         </span>
-                        <span className="text-[10px] text-stone-400">
+                        <span className="text-[10px] text-stone-400 font-medium">
                           {prod.stock} {prod.unit}
                         </span>
                       </div>
@@ -561,7 +576,7 @@ export default function Comandas() {
               </div>
 
               {/* Subtotal & 10% Toggle */}
-              <div className="p-4 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2.5">
                 <div className="flex items-center justify-between text-xs text-stone-300">
                   <span>Subtotal do Consumo:</span>
                   <span className="font-bold tabular-nums text-sm text-stone-200">
@@ -569,7 +584,7 @@ export default function Comandas() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-[#44403C]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#44403C]/70">
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={!!currentComanda.includeServiceFee}
@@ -585,17 +600,17 @@ export default function Comandas() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-[#44403C] text-base font-black">
+                <div className="flex items-center justify-between pt-2 border-t border-[#44403C] text-sm sm:text-base font-black">
                   <span className="text-stone-100">Total da Comanda:</span>
-                  <span className="text-amber-400 tabular-nums text-xl">
+                  <span className="text-amber-400 tabular-nums text-lg sm:text-xl font-black">
                     R$ {computeTotal(currentComanda).toFixed(2)}
                   </span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                <div className="flex items-center gap-2">
+              {/* Action Buttons - Otimizado para telas estreitas com espaço de respiro inferior contra floating bars */}
+              <div className="pt-2 border-t border-[#44403C]/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                   <Button
                     type="button"
                     variant="outline"
@@ -625,10 +640,10 @@ export default function Comandas() {
                         })
                       }
                     }}
-                    className="bg-[#1C1917] border-[#44403C] text-stone-300 hover:text-white text-xs"
+                    className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:text-white text-xs h-10 sm:h-9 flex items-center justify-center"
                   >
-                    <Printer className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-                    Imprimir Conta
+                    <Printer className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
+                    <span>Imprimir Conta</span>
                   </Button>
 
                   <Button
@@ -641,20 +656,20 @@ export default function Comandas() {
                         description: `Chamado enviado para a equipe de salão.`,
                       })
                     }}
-                    className="bg-[#1C1917] border-[#44403C] text-stone-300 hover:text-white text-xs"
+                    className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:text-white text-xs h-10 sm:h-9 flex items-center justify-center"
                   >
-                    <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-                    Chamar Garçom
+                    <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
+                    <span>Chamar Garçom</span>
                   </Button>
                 </div>
 
                 <Button
                   type="button"
                   onClick={handleOpenPaymentFlow}
-                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold text-xs px-5 shadow-md shadow-amber-950/40"
+                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs sm:text-sm h-11 sm:h-9 px-5 shadow-lg shadow-amber-950/40 w-full sm:w-auto flex items-center justify-center"
                 >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Enviar para Pagamento
+                  <CreditCard className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span>Enviar para Pagamento</span>
                 </Button>
               </div>
             </div>
@@ -664,12 +679,12 @@ export default function Comandas() {
 
       {/* PAYMENT MODAL (Simulated TEP / WhatsApp flow) */}
       <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent className="max-w-xl bg-[#292524] border-[#44403C] text-stone-100 p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black text-stone-100 flex items-center justify-between">
-              <span>Fechamento & Pagamento — Mesa {activePayingComanda?.tableNumber}</span>
-              <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/40 text-xs font-bold">
-                TEP Simulado
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-xl bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 pb-20 sm:pb-6">
+          <DialogHeader className="pr-6 sm:pr-0">
+            <DialogTitle className="text-base sm:text-lg font-black text-stone-100 flex items-center justify-between flex-wrap gap-1">
+              <span>Fechamento — Mesa {activePayingComanda?.tableNumber}</span>
+              <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/40 text-[10px] sm:text-xs font-bold">
+                TEP Integrado
               </Badge>
             </DialogTitle>
           </DialogHeader>

@@ -432,7 +432,7 @@ export default function Layout() {
       </header>
 
       {/* Main Container with Sidebar + Content */}
-      <div className="flex flex-1 pt-16 pb-16 md:pb-6">
+      <div className="flex flex-1 pt-16 pb-24 md:pb-8">
         {/* Fixed Desktop Sidebar */}
         <aside
           className={`hidden md:flex flex-col fixed top-16 bottom-0 left-0 bg-[#292524] border-r border-[#44403C] z-20 transition-all duration-300 ease-in-out ${
@@ -544,21 +544,31 @@ export default function Layout() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (< 768px) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#292524] border-t border-[#44403C] z-30 flex items-center justify-around px-2">
+      {/* Mobile Bottom Navigation Bar (< 768px) with safe area */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#292524]/95 backdrop-blur-md border-t border-[#44403C] z-30 flex items-center justify-around px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         {visibleNavItems.slice(0, 5).map((item) => {
           const Icon = item.icon
           const isActive = location.pathname === item.path
+          const count = item.badgeCount ? item.badgeCount(barContext) : 0
           return (
             <NavLink
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-medium transition-colors ${
+              className={`relative flex flex-col items-center justify-center flex-1 py-1.5 text-[10px] font-medium transition-colors ${
                 isActive ? 'text-amber-500 font-bold' : 'text-stone-400 hover:text-stone-200'
               }`}
             >
-              <Icon className="w-5 h-5 mb-0.5" />
-              <span className="truncate max-w-[64px] text-center">{item.title.split(' ')[0]}</span>
+              <div className="relative">
+                <Icon className="w-5 h-5 mb-0.5" />
+                {count > 0 && (
+                  <span className="absolute -top-1 -right-2 px-1 py-0.2 text-[9px] font-extrabold rounded-full bg-amber-500 text-stone-950 min-w-[14px] text-center">
+                    {count}
+                  </span>
+                )}
+              </div>
+              <span className="truncate max-w-[64px] text-center leading-tight">
+                {item.title.split(' ')[0]}
+              </span>
             </NavLink>
           )
         })}

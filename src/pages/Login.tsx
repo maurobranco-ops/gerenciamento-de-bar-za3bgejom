@@ -26,7 +26,15 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const { session } = useAuth()
   const from = (location.state as any)?.from?.pathname || '/'
+
+  // Se o usuário já estiver autenticado e acessar /login, redirecionar para a tela pretendida
+  React.useEffect(() => {
+    if (!authLoading && session) {
+      navigate(from, { replace: true })
+    }
+  }, [authLoading, session, navigate, from])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

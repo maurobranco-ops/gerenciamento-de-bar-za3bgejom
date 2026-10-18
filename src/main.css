@@ -71,6 +71,11 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Safe padding for modern mobile devices */
+  .pb-safe {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

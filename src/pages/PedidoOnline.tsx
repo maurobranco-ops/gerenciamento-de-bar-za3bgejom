@@ -692,24 +692,23 @@ export default function PedidoOnline() {
         )}
       </main>
 
-      {/* Floating Bottom Bar if Cart has items */}
+      {/* Floating Bottom Bar if Cart has items (com margem de segurança para o Skip badge no canto inferior direito) */}
       {cartCount > 0 && !cartOpen && (
-        <div className="sticky bottom-3 px-4 max-w-4xl mx-auto w-full z-20">
+        <div className="sticky bottom-4 sm:bottom-3 px-3 sm:px-4 max-w-4xl mx-auto w-full z-20 mb-8 sm:mb-2">
           <button
             onClick={() => setCartOpen(true)}
-            className="w-full p-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black shadow-xl shadow-amber-950/60 flex items-center justify-between transition-all"
+            className="w-full p-3.5 sm:p-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black shadow-xl shadow-amber-950/60 flex items-center justify-between transition-all"
           >
             <div className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-full bg-stone-950 text-amber-400 text-xs flex items-center justify-center font-bold">
                 {cartCount}
               </span>
-              <span className="text-sm">Ver carrinho do pedido</span>
+              <span className="text-xs sm:text-sm">Ver carrinho do pedido</span>
             </div>
-            <div className="text-base tabular-nums">R$ {cartTotal.toFixed(2)}</div>
+            <div className="text-sm sm:text-base tabular-nums">R$ {cartTotal.toFixed(2)}</div>
           </button>
         </div>
       )}
-
       {/* Modal: Personalizar / Observação do Item */}
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent className="max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-6">
@@ -824,8 +823,8 @@ export default function PedidoOnline() {
 
       {/* Drawer/Modal do Carrinho */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent className="max-w-lg bg-[#292524] border-[#44403C] text-stone-100 p-6 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-lg bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 max-h-[92dvh] overflow-y-auto pb-20 sm:pb-6">
+          <DialogHeader className="pr-6 sm:pr-0">
             <DialogTitle className="text-lg font-black text-stone-100 flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-amber-500" />

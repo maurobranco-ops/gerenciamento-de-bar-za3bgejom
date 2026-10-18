@@ -601,7 +601,7 @@ export default function ProdutosAdmin() {
 
       {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-lg bg-[#292524] border-[#44403C] text-stone-100 p-6">
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-lg bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 pb-20 sm:pb-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-stone-100 flex items-center gap-2">
               <PackagePlus className="w-5 h-5 text-amber-500" />

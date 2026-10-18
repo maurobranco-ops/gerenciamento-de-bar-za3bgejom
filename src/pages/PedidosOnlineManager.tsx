@@ -187,7 +187,7 @@ export default function PedidosOnlineManager() {
       </div>
 
       {/* Grid de QR Codes por Mesa */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pb-8">
         {sortedMesas.map((mesa) => {
           const mesaUrl = `${origin}/pedido/${mesa.numero}`
           const isCopied = copiedMesa === mesa.numero

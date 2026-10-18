@@ -268,26 +268,26 @@ export const StatusAcompanhamentoPedido: React.FC<StatusAcompanhamentoPedidoProp
               className={`p-3.5 sm:p-4 rounded-xl border transition-all ${cfg.bgCardClass} ${cfg.borderClass} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}
             >
               {/* Esquerda: Foto (se houver), Nome, Quantidade, Área e Obs */}
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0">
                 {item.image_url ? (
                   <img
                     src={item.image_url}
                     alt={item.nome_produto}
-                    className="w-14 h-14 rounded-lg object-cover border border-[#44403C] flex-shrink-0"
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover border border-[#44403C] flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-lg bg-[#1C1917] border border-[#44403C] flex items-center justify-center flex-shrink-0 text-stone-400">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-[#1C1917] border border-[#44403C] flex items-center justify-center flex-shrink-0 text-stone-400">
                     {item.area_preparo === 'bar' ? (
-                      <Beer className="w-6 h-6 text-amber-500" />
+                      <Beer className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
                     ) : (
-                      <ChefHat className="w-6 h-6 text-amber-500" />
+                      <ChefHat className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
                     )}
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-black text-stone-100">
+                <div className="space-y-1 flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-stone-100 break-words leading-tight">
                       {item.quantidade}x {item.nome_produto}
                     </span>
                     <Badge
@@ -299,10 +299,12 @@ export const StatusAcompanhamentoPedido: React.FC<StatusAcompanhamentoPedidoProp
                   </div>
 
                   {item.observacoes && (
-                    <p className="text-[11px] text-amber-300/90 italic">Obs: {item.observacoes}</p>
+                    <p className="text-[11px] text-amber-300/90 italic break-words">
+                      Obs: {item.observacoes}
+                    </p>
                   )}
 
-                  <div className="text-[11px] text-stone-400 flex items-center gap-1.5 pt-0.5">
+                  <div className="text-[10px] sm:text-[11px] text-stone-400 flex items-center gap-1.5 pt-0.5">
                     <Clock className="w-3 h-3 text-stone-500" />
                     <span>{elapsed}</span>
                   </div>

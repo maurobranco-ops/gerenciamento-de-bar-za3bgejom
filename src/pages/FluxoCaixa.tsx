@@ -502,7 +502,7 @@ export default function FluxoCaixa() {
 
       {/* Modal: Registrar Movimento */}
       <Dialog open={newMovementOpen} onOpenChange={setNewMovementOpen}>
-        <DialogContent className="max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-6">
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 pb-20 sm:pb-6">
           <DialogHeader>
             <DialogTitle className="text-base font-black text-stone-100">
               Registrar Movimentação Manual no Caixa
@@ -604,7 +604,7 @@ export default function FluxoCaixa() {
 
       {/* Modal: Fechar Caixa */}
       <Dialog open={fecharCaixaOpen} onOpenChange={setFecharCaixaOpen}>
-        <DialogContent className="max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-6">
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 pb-20 sm:pb-6">
           <DialogHeader>
             <DialogTitle className="text-base font-black text-stone-100 flex items-center gap-2">
               <Lock className="w-5 h-5 text-red-400" />

@@ -269,39 +269,39 @@ export default function FilaCozinha() {
             </Label>
           </div>
 
-          {/* Seletor de Praça / Área */}
-          <div className="flex items-center bg-[#1C1917] p-1 rounded-xl border border-[#44403C]">
+          {/* Seletor de Praça / Área - com scroll horizontal em mobile se necessário */}
+          <div className="flex items-center bg-[#1C1917] p-1 rounded-xl border border-[#44403C] max-w-full overflow-x-auto">
             <button
               onClick={() => setSelectedArea('todos')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 selectedArea === 'todos'
                   ? 'bg-amber-500 text-stone-950 shadow-sm'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Todas as Praças</span>
+              <Filter className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Todas</span>
             </button>
             <button
               onClick={() => setSelectedArea('cozinha')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 selectedArea === 'cozinha'
                   ? 'bg-amber-500 text-stone-950 shadow-sm'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              <UtensilsCrossed className="w-3.5 h-3.5" />
+              <UtensilsCrossed className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Cozinha ({counts.cozinha})</span>
             </button>
             <button
               onClick={() => setSelectedArea('bar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 selectedArea === 'bar'
                   ? 'bg-amber-500 text-stone-950 shadow-sm'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              <Beer className="w-3.5 h-3.5" />
+              <Beer className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Bar ({counts.bar})</span>
             </button>
           </div>
@@ -404,9 +404,9 @@ export default function FilaCozinha() {
 
       {/* Quadro Kanban de Fila de Preparo */}
       <div
-        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${
-          showDelivered ? '4' : '3'
-        } gap-4 items-start`}
+        className={`grid grid-cols-1 md:grid-cols-2 ${
+          showDelivered ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+        } gap-4 items-start pb-8`}
       >
         {STATUS_COLUMNS.filter((col) => showDelivered || col.key !== 'entregue').map((col) => {
           const ColIcon = col.icon
