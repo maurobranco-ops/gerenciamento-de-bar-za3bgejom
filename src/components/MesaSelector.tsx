@@ -15,9 +15,19 @@ import {
 import { TableRecord } from '@/types/bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { QRScanner } from './QRScanner'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
 import { supabase } from '@/lib/supabase/client'
+import { BarService } from '@/services/barService'
 
 interface MesaSelectorProps {
   mesas: TableRecord[]
@@ -50,6 +60,12 @@ export function MesaSelector({
     total?: number
     itensCount?: number
   } | null>(null)
+
+  // Modal para pedir o nome do cliente ao abrir mesa Livre
+  const [modalNomeMesa, setModalNomeMesa] = useState<number | null>(null)
+  const [inputNomeCliente, setInputNomeCliente] = useState('')
+  const [nomeClienteError, setNomeClienteError] = useState<string | null>(null)
+  const [iniciandoAtendimento, setIniciandoAtendimento] = useState(false)
 
   // Sincroniza se a prop mudar
   useEffect(() => {
@@ -216,8 +232,62 @@ export function MesaSelector({
       return
     }
 
-    // Mesa livre e validada!
-    onSelectMesa(num)
+    // Mesa livre e validada: abre modal para pedir o nome de quem está na mesa
+    setModalNomeMesa(num)
+    setInputNomeCliente('')
+    setNomeClienteError(null)
+  }
+
+  // Confirma a abertura de mesa Livre com o nome informado
+  const handleConfirmarInicioAtendimento = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!modalNomeMesa) return
+
+    const nomeFormatado = inputNomeCliente.trim()
+    if (!nomeFormatado) {
+      setNomeClienteError('Por favor, informe seu nome para iniciar o atendimento.')
+      return
+    }
+
+    if (nomeFormatado.length > 60) {
+      setNomeClienteError('O nome deve ter no máximo 60 caracteres.')
+      return
+    }
+
+    setIniciandoAtendimento(true)
+    setNomeClienteError(null)
+
+    try {
+      // Chama o método no BarService que executa a RPC iniciar_atendimento_online
+      const res = await BarService.iniciarAtendimentoOnline(modalNomeMesa, nomeFormatado)
+      if (res && res.sucesso === false) {
+        setNomeClienteError(res.mensagem || 'Não foi possível iniciar o atendimento.')
+        setIniciandoAtendimento(false)
+        return
+      }
+
+      // Salva no storage local com o nome do cliente registrado
+      AtendimentoStorage.set({
+        mesaNumero: modalNomeMesa,
+        comandaId: res?.comanda_id,
+        clienteNome: nomeFormatado,
+      })
+      setActiveSession(AtendimentoStorage.get())
+
+      const mesaEscolhida = modalNomeMesa
+      setModalNomeMesa(null)
+      setInputNomeCliente('')
+
+      // Segue o fluxo normal de entrada na mesa
+      onSelectMesa(mesaEscolhida)
+    } catch (err: any) {
+      console.error('Erro ao iniciar atendimento online:', err)
+      setNomeClienteError(
+        err.message || 'Erro ao comunicar com o servidor. Tente novamente em instantes.',
+      )
+    } finally {
+      setIniciandoAtendimento(false)
+    }
   }
 
   const handleScanResult = (scannedText: string) => {
@@ -531,6 +601,99 @@ export function MesaSelector({
 
       {/* Scanner Modal de Câmera */}
       {showScanner && <QRScanner onScan={handleScanResult} onClose={() => setShowScanner(false)} />}
+
+      {/* Modal: Nome de quem está na mesa (Abertura de Mesa Livre) */}
+      <Dialog
+        open={modalNomeMesa !== null}
+        onOpenChange={(open) => {
+          if (!open && !iniciandoAtendimento) {
+            setModalNomeMesa(null)
+            setInputNomeCliente('')
+            setNomeClienteError(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-2 border-amber-500/50 text-stone-100 p-5 sm:p-6 shadow-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 border border-amber-500/40">
+              <Users className="w-6 h-6 stroke-[2.2]" />
+            </div>
+            <DialogTitle className="text-center text-lg font-black text-stone-100">
+              Quem está na Mesa {modalNomeMesa}?
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-stone-300">
+              Identifique-se para abrirmos sua comanda no bar. Esse nome aparecerá nos pedidos da
+              cozinha e no fechamento da conta.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleConfirmarInicioAtendimento} className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="nome-cliente-input" className="text-xs font-bold text-stone-200">
+                Nome de quem está na mesa:
+              </Label>
+              <Input
+                id="nome-cliente-input"
+                autoFocus
+                type="text"
+                maxLength={60}
+                value={inputNomeCliente}
+                onChange={(e) => {
+                  setInputNomeCliente(e.target.value)
+                  if (nomeClienteError) setNomeClienteError(null)
+                }}
+                placeholder="Nome de quem está na mesa"
+                disabled={iniciandoAtendimento}
+                className="bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500 h-11"
+              />
+              <div className="flex items-center justify-between text-[11px] text-stone-400 pt-0.5">
+                <span>Ex: Carlos, Ana, Turma do Happy Hour...</span>
+                <span className="tabular-nums">{inputNomeCliente.length}/60</span>
+              </div>
+            </div>
+
+            {nomeClienteError && (
+              <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/50 text-red-200 text-xs flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{nomeClienteError}</span>
+              </div>
+            )}
+
+            <div className="flex gap-2.5 pt-2 border-t border-[#44403C]">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={iniciandoAtendimento}
+                onClick={() => {
+                  setModalNomeMesa(null)
+                  setInputNomeCliente('')
+                  setNomeClienteError(null)
+                }}
+                className="flex-1 text-stone-400 hover:text-stone-200 text-xs h-11"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={iniciandoAtendimento || !inputNomeCliente.trim()}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs sm:text-sm h-11 shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2"
+              >
+                {iniciandoAtendimento ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Iniciando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Confirmar</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
