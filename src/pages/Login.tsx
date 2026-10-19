@@ -1,15 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {
-  Beer,
-  Lock,
-  Mail,
-  Loader2,
-  ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  AlertCircle,
-} from 'lucide-react'
+import { Beer, Lock, Mail, Loader2, ArrowRight, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,12 +59,6 @@ export default function Login() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const fillQuickAccount = (quickEmail: string, quickPass: string) => {
-    setEmail(quickEmail)
-    setPassword(quickPass)
-    setErrorMessage(null)
   }
 
   return (
@@ -170,63 +155,6 @@ export default function Login() {
               )}
             </Button>
           </form>
-
-          {/* Demonstration Quick Fill Cards */}
-          <div className="pt-4 border-t border-[#44403C]/70 space-y-2.5">
-            <div className="flex items-center justify-between text-[11px] text-stone-400 font-medium">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Contas de Demonstração (Clique para testar):
-              </span>
-              <span className="text-[10px] text-stone-500">senha: rachide123</span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => fillQuickAccount('gerente@rachide.bar', 'rachide123')}
-                className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-all group"
-              >
-                <div className="text-[11px] font-bold text-amber-400 group-hover:text-amber-300">
-                  Gerente
-                </div>
-                <div className="text-[10px] text-stone-400 truncate mt-0.5">Acesso total</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillQuickAccount('caixa@rachide.bar', 'rachide123')}
-                className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-all group"
-              >
-                <div className="text-[11px] font-bold text-blue-400 group-hover:text-blue-300">
-                  Caixa
-                </div>
-                <div className="text-[10px] text-stone-400 truncate mt-0.5">Caixa e fiscal</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillQuickAccount('garcom@rachide.bar', 'rachide123')}
-                className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-all group"
-              >
-                <div className="text-[11px] font-bold text-emerald-400 group-hover:text-emerald-300">
-                  Garçom
-                </div>
-                <div className="text-[10px] text-stone-400 truncate mt-0.5">Comandas e fila</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillQuickAccount('cozinha@rachide.bar', 'rachide123')}
-                className="p-2 rounded-xl bg-[#1C1917] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-all group"
-              >
-                <div className="text-[11px] font-bold text-orange-400 group-hover:text-orange-300">
-                  Cozinha
-                </div>
-                <div className="text-[10px] text-stone-400 truncate mt-0.5">KDS Dedicado</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Public Access Link */}
