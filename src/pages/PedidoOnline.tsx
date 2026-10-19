@@ -649,6 +649,8 @@ export default function PedidoOnline() {
         onClearError={() => setMesaBlockedError(null)}
         onSelectMesa={(num) => {
           setMesaBlockedError(null)
+          setDetalhesConta(null)
+          setTrackedItems([])
           setMesaNum(num)
           navigate(`/pedido/${num}`, { replace: true })
         }}
@@ -727,6 +729,8 @@ export default function PedidoOnline() {
               variant="outline"
               size="sm"
               onClick={() => {
+                setDetalhesConta(null)
+                setTrackedItems([])
                 setMesaNum(0)
                 navigate('/pedido', { replace: true })
               }}

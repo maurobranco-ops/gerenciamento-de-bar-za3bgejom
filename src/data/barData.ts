@@ -411,19 +411,10 @@ export const INITIAL_TABLES: Comanda[] = [
   {
     id: 'cmd-09',
     tableNumber: 9,
-    guestCount: 4,
-    status: 'Fechada',
-    openedAt: '2025-03-17T17:30:00',
-    closedAt: '2025-03-17T19:10:00',
-    items: [
-      {
-        id: 'ci-14',
-        menuItemId: 'prod-1',
-        name: 'Heineken Long Neck 330ml',
-        price: 13.9,
-        quantity: 5,
-      },
-    ],
+    guestCount: 0,
+    status: 'Livre',
+    openedAt: '',
+    items: [],
   },
   {
     id: 'cmd-10',

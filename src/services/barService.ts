@@ -336,24 +336,51 @@ export const BarService = {
         origemOnline: Boolean(ci.origem_online),
       }))
 
+      // Salvaguarda: se a mesa/comanda estiver Ocupada e statusConta for 'fechada', sanitiza para 'nenhum'
+      const rawStatusConta = (c?.status_conta as StatusContaCliente) || 'nenhum'
+      const statusMesa = (m.status as TableStatus) || 'Livre'
+      const isOcupada = statusMesa === 'Ocupada' || c?.status === 'Ocupada'
+      const statusContaSanitizado: StatusContaCliente =
+        isOcupada && rawStatusConta === 'fechada' ? 'nenhum' : rawStatusConta
+      const contaSolicitadaSanitizada =
+        statusContaSanitizado === 'nenhum' ? false : Boolean(c?.conta_solicitada)
+
       return {
         id: c?.id || `cmd-${m.numero < 10 ? `0${m.numero}` : m.numero}`,
         tableNumber: m.numero,
         clientName: c?.cliente_nome || undefined,
         guestCount: c?.pessoas ?? 0,
-        status: (m.status as TableStatus) || 'Livre',
+        status: statusMesa,
         openedAt: c?.aberta_em || '',
         closedAt: c?.fechada_em || undefined,
         includeServiceFee: c ? Boolean(c.inclui_taxa_servico) : true,
         capacity: m.capacidade,
-        contaSolicitada: Boolean(c?.conta_solicitada),
-        contaSolicitadaEm: c?.conta_solicitada_em || undefined,
-        formaPagamentoSolicitada: c?.forma_pagamento_solicitada as PaymentMethod | undefined,
-        statusConta: (c?.status_conta as StatusContaCliente) || 'nenhum',
-        motivoRecusaConta: c?.motivo_recusa_conta || undefined,
+        contaSolicitada: contaSolicitadaSanitizada,
+        contaSolicitadaEm:
+          statusContaSanitizado === 'nenhum' ? undefined : c?.conta_solicitada_em || undefined,
+        formaPagamentoSolicitada:
+          statusContaSanitizado === 'nenhum'
+            ? undefined
+            : (c?.forma_pagamento_solicitada as PaymentMethod | undefined),
+        statusConta: statusContaSanitizado,
+        motivoRecusaConta:
+          statusContaSanitizado === 'recusada' ? c?.motivo_recusa_conta || undefined : undefined,
         items,
       }
     })
+  },
+
+  /**
+   * Helper central de salvaguarda: campos do fluxo de conta totalmente limpos
+   */
+  getCleanContaFlowFields() {
+    return {
+      status_conta: 'nenhum' as const,
+      conta_solicitada: false,
+      conta_solicitada_em: null,
+      forma_pagamento_solicitada: null,
+      motivo_recusa_conta: null,
+    }
   },
 
   async openComanda(tableNumber: number, guestCount: number, clientName?: string): Promise<void> {
@@ -366,7 +393,7 @@ export const BarService = {
       .update({ status: 'Ocupada', updated_at: openedAt })
       .eq('numero', tableNumber)
 
-    // 2. Upsert comanda
+    // 2. Upsert comanda com salvaguarda total do fluxo de conta
     await db.from('comandas').upsert({
       id: comandaId,
       mesa_numero: tableNumber,
@@ -377,6 +404,7 @@ export const BarService = {
       fechada_em: null,
       inclui_taxa_servico: true,
       total: 0,
+      ...this.getCleanContaFlowFields(),
       updated_at: openedAt,
     })
 
@@ -430,15 +458,21 @@ export const BarService = {
         .eq('id', item.id)
     }
 
-    // 3. Atualizar mesa para 'Ocupada' se estava Livre
+    // 3. Atualizar mesa para 'Ocupada' com salvaguarda de fluxo de conta
+    const nowIso = new Date().toISOString()
     await db
       .from('mesas')
-      .update({ status: 'Ocupada', updated_at: new Date().toISOString() })
+      .update({ status: 'Ocupada', updated_at: nowIso })
       .eq('numero', tableNumber)
 
+    // Ao colocar pedidos e manter a mesa ocupada, garante que status_conta residual nunca persista
     await db
       .from('comandas')
-      .update({ status: 'Ocupada', updated_at: new Date().toISOString() })
+      .update({
+        status: 'Ocupada',
+        ...this.getCleanContaFlowFields(),
+        updated_at: nowIso,
+      })
       .eq('id', comandaId)
 
     // 4. Prepara fila de cozinha/bar conforme campo area_preparo do produto (ou fallback pela categoria)
@@ -521,7 +555,7 @@ export const BarService = {
     // 1. Atualizar mesa para Livre
     await db.from('mesas').update({ status: 'Livre', updated_at: nowIso }).eq('numero', tableNumber)
 
-    // 2. Atualizar comanda para Fechada / Livre e limpar itens
+    // 2. Atualizar comanda para Fechada / Livre e limpar itens com salvaguarda de campos de conta
     await db
       .from('comandas')
       .update({
@@ -530,6 +564,7 @@ export const BarService = {
         pessoas: 0,
         fechada_em: nowIso,
         total: 0,
+        ...this.getCleanContaFlowFields(),
         updated_at: nowIso,
       })
       .eq('id', comandaId)
@@ -1009,6 +1044,13 @@ export const BarService = {
       throw error
     }
 
+    // Salvaguarda adicional no cliente: se statusMesa for Ocupada e statusConta for fechada, sanitizar para nenhum
+    const rawStatus = (data?.status_conta as StatusContaCliente) || 'nenhum'
+    const statusMesa = data?.status_mesa
+    const isOcupada = statusMesa === 'Ocupada'
+    const statusContaSanitizado: StatusContaCliente =
+      isOcupada && rawStatus === 'fechada' ? 'nenhum' : rawStatus
+
     return {
       encontrada: Boolean(data?.encontrada),
       comandaId: data?.comanda_id,
@@ -1016,11 +1058,13 @@ export const BarService = {
       clienteNome: data?.cliente_nome,
       pessoas: data?.pessoas,
       statusMesa: data?.status_mesa,
-      contaSolicitada: Boolean(data?.conta_solicitada),
-      contaSolicitadaEm: data?.conta_solicitada_em,
-      formaPagamentoSolicitada: data?.forma_pagamento_solicitada,
-      statusConta: data?.status_conta,
-      motivoRecusaConta: data?.motivo_recusa_conta,
+      contaSolicitada: statusContaSanitizado === 'nenhum' ? false : Boolean(data?.conta_solicitada),
+      contaSolicitadaEm: statusContaSanitizado === 'nenhum' ? undefined : data?.conta_solicitada_em,
+      formaPagamentoSolicitada:
+        statusContaSanitizado === 'nenhum' ? undefined : data?.forma_pagamento_solicitada,
+      statusConta: statusContaSanitizado,
+      motivoRecusaConta:
+        statusContaSanitizado === 'recusada' ? data?.motivo_recusa_conta : undefined,
       subtotal: data?.subtotal !== undefined ? Number(data.subtotal) : undefined,
       taxaPercentual:
         data?.taxa_percentual !== undefined ? Number(data.taxa_percentual) : undefined,

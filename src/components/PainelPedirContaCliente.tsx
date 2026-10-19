@@ -85,7 +85,13 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   const [modalOpen, setModalOpen] = useState(false)
   const [formaSelecionada, setFormaSelecionada] = useState<PaymentMethod>('Pix')
 
-  const statusConta: StatusContaCliente = detalhesConta?.statusConta || 'nenhum'
+  const rawStatusConta: StatusContaCliente = detalhesConta?.statusConta || 'nenhum'
+  const isMesaOcupada = detalhesConta?.statusMesa === 'Ocupada'
+  // Salvaguarda: se a mesa está Ocupada (ou há itens de consumo em aberto),
+  // um status residual 'fechada' nunca deve esconder a interface ou o botão de pedir conta
+  const statusConta: StatusContaCliente =
+    isMesaOcupada && rawStatusConta === 'fechada' ? 'nenhum' : rawStatusConta
+
   const isContaAtiva =
     statusConta === 'solicitada' ||
     statusConta === 'autorizada' ||
@@ -100,7 +106,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
     setModalOpen(false)
   }
 
-  // Se a comanda estiver fechada
+  // Se a comanda estiver fechada (e a mesa NÃO estiver ocupada em novo atendimento)
   if (statusConta === 'fechada') {
     return (
       <div className="p-4 sm:p-5 rounded-2xl bg-[#1C1917] border border-emerald-500/40 shadow-xl space-y-3">

@@ -483,7 +483,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- COMANDAS ---
   const openComanda = async (tableNumber: number, guestCount: number, clientName?: string) => {
     const openedAt = new Date().toISOString()
-    // Atualização otimista
+    // Atualização otimista com salvaguarda total dos campos do fluxo de conta
     setComandas((prev) =>
       prev.map((c) => {
         if (c.tableNumber === tableNumber) {
@@ -493,7 +493,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             guestCount: guestCount || 1,
             clientName: clientName || `Mesa ${tableNumber}`,
             openedAt,
+            closedAt: undefined,
             includeServiceFee: true,
+            contaSolicitada: false,
+            contaSolicitadaEm: undefined,
+            formaPagamentoSolicitada: undefined,
+            statusConta: 'nenhum',
+            motivoRecusaConta: undefined,
             items: [],
           }
         }
@@ -551,9 +557,19 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               quantity,
             })
           }
+          const wasLivreOrClosed = c.status === 'Livre' || c.statusConta === 'fechada'
           return {
             ...c,
             status: c.status === 'Livre' ? 'Ocupada' : c.status,
+            ...(wasLivreOrClosed
+              ? {
+                  statusConta: 'nenhum' as const,
+                  contaSolicitada: false,
+                  contaSolicitadaEm: undefined,
+                  formaPagamentoSolicitada: undefined,
+                  motivoRecusaConta: undefined,
+                }
+              : {}),
             items: updatedItems,
           }
         }
@@ -679,6 +695,11 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...c,
             status: 'Livre',
             closedAt: new Date().toISOString(),
+            contaSolicitada: false,
+            contaSolicitadaEm: undefined,
+            formaPagamentoSolicitada: undefined,
+            statusConta: 'nenhum',
+            motivoRecusaConta: undefined,
             items: [],
             clientName: undefined,
             guestCount: 0,
