@@ -1,7 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   QrCode,
-  AlertCircle,
   Loader2,
   Sparkles,
   Beer,
@@ -10,11 +9,15 @@ import {
   Info,
   CheckCircle2,
   Users,
+  RotateCcw,
+  Receipt,
 } from 'lucide-react'
 import { TableRecord } from '@/types/bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { QRScanner } from './QRScanner'
+import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
+import { supabase } from '@/lib/supabase/client'
 
 interface MesaSelectorProps {
   mesas: TableRecord[]
@@ -22,6 +25,8 @@ interface MesaSelectorProps {
   onSelectMesa: (mesaNumero: number) => void
   errorBanner?: string | null
   onClearError?: () => void
+  atendimentoAtivo?: AtendimentoAtivoLocal | null
+  onContinuarAtendimento?: (mesaNumero: number) => void
 }
 
 export function MesaSelector({
@@ -30,10 +35,92 @@ export function MesaSelector({
   onSelectMesa,
   errorBanner,
   onClearError,
+  atendimentoAtivo: propAtendimentoAtivo,
+  onContinuarAtendimento,
 }: MesaSelectorProps) {
   const [showScanner, setShowScanner] = useState(false)
   const [inputNumber, setInputNumber] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
+  const [activeSession, setActiveSession] = useState<AtendimentoAtivoLocal | null>(
+    propAtendimentoAtivo !== undefined ? propAtendimentoAtivo : AtendimentoStorage.get(),
+  )
+  const [verificandoSessao, setVerificandoSessao] = useState(false)
+  const [sessaoValidaNoBanco, setSessaoValidaNoBanco] = useState(false)
+  const [detalhesComandaSessao, setDetalhesComandaSessao] = useState<{
+    total?: number
+    itensCount?: number
+  } | null>(null)
+
+  // Sincroniza se a prop mudar
+  useEffect(() => {
+    if (propAtendimentoAtivo !== undefined) {
+      setActiveSession(propAtendimentoAtivo)
+    }
+  }, [propAtendimentoAtivo])
+
+  // Verifica ao vivo no banco se a comanda/atendimento local ainda está aberto
+  useEffect(() => {
+    let isMounted = true
+
+    const verificarSessaoAoVivo = async () => {
+      const stored = activeSession || AtendimentoStorage.get()
+      if (!stored || !stored.mesaNumero) {
+        if (isMounted) {
+          setSessaoValidaNoBanco(false)
+          setDetalhesComandaSessao(null)
+        }
+        return
+      }
+
+      setVerificandoSessao(true)
+      try {
+        const comandaId =
+          stored.comandaId ||
+          `cmd-${stored.mesaNumero < 10 ? `0${stored.mesaNumero}` : stored.mesaNumero}`
+        const { data: cmd, error } = await supabase
+          .from('comandas')
+          .select('id, mesa_numero, status, total, comanda_itens(count)')
+          .eq('id', comandaId)
+          .maybeSingle()
+
+        if (!error && cmd && (cmd.status === 'Ocupada' || cmd.status === 'Aguardando Pagamento')) {
+          if (isMounted) {
+            setSessaoValidaNoBanco(true)
+            const countItens = (cmd as any).comanda_itens?.[0]?.count || 0
+            setDetalhesComandaSessao({
+              total: Number(cmd.total || 0),
+              itensCount: countItens,
+            })
+          }
+        } else {
+          // Se a comanda está Livre ou não existe mais, limpa a sessão local
+          if (isMounted) {
+            setSessaoValidaNoBanco(false)
+            setDetalhesComandaSessao(null)
+          }
+          if (cmd && cmd.status === 'Livre') {
+            AtendimentoStorage.clear()
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar atendimento ativo no banco:', err)
+        // Em caso de falha de rede temporária, mantém a sessão se o storage possuir
+        if (isMounted && stored.mesaNumero) {
+          setSessaoValidaNoBanco(true)
+        }
+      } finally {
+        if (isMounted) {
+          setVerificandoSessao(false)
+        }
+      }
+    }
+
+    verificarSessaoAoVivo()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeSession])
 
   // Mesas ordenadas por número
   const sortedMesas = [...mesas].sort((a, b) => a.numero - b.numero)
@@ -93,6 +180,20 @@ export function MesaSelector({
     }
 
     const found = mesas.find((m) => m.numero === num)
+
+    // Checar se a mesa pertence ao próprio atendimento deste aparelho
+    const stored = activeSession || AtendimentoStorage.get()
+    const isMinhaMesa = stored && stored.mesaNumero === num && sessaoValidaNoBanco
+
+    // Se a mesa estiver ocupada mas for deste mesmo aparelho, permite reentrar diretamente!
+    if (isMinhaMesa) {
+      if (onContinuarAtendimento) {
+        onContinuarAtendimento(num)
+      } else {
+        onSelectMesa(num)
+      }
+      return
+    }
 
     // Se as mesas já foram carregadas e encontramos a mesa no banco
     if (found) {
@@ -192,6 +293,66 @@ export function MesaSelector({
             cozinha.
           </p>
         </div>
+
+        {/* Card de Destaque: Continuar meu atendimento (quando houver comanda aberta deste aparelho) */}
+        {sessaoValidaNoBanco && activeSession && (
+          <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-amber-950/50 via-[#292524] to-[#342D26] border-2 border-amber-500 shadow-xl shadow-amber-950/40 space-y-3.5 animate-fade-in">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center shrink-0 shadow-md shadow-amber-950/40">
+                  <RotateCcw className="w-6 h-6 stroke-[2.4]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] uppercase tracking-wider font-extrabold text-amber-400">
+                      Atendimento em Aberto
+                    </span>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] font-bold">
+                      Mesa {activeSession.mesaNumero}
+                    </Badge>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-stone-100 mt-0.5">
+                    Você já tem uma comanda ativa neste aparelho
+                  </h2>
+                  <p className="text-xs text-stone-300 mt-1 leading-relaxed">
+                    Seu consumo e pedidos continuam salvos e em andamento na{' '}
+                    <strong>Mesa {activeSession.mesaNumero}</strong>. Reentre agora para ver seu
+                    carrinho, status do preparo e pedir a conta.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Informações adicionais se disponíveis */}
+            {detalhesComandaSessao && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#1C1917]/80 border border-[#44403C] text-xs">
+                <div className="flex items-center gap-2 text-stone-300">
+                  <Receipt className="w-4 h-4 text-amber-400" />
+                  <span>Consumo da sua mesa:</span>
+                </div>
+                <div className="font-extrabold text-amber-400 tabular-nums text-sm">
+                  R$ {(detalhesComandaSessao.total || 0).toFixed(2)}
+                </div>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={() => {
+                if (onContinuarAtendimento) {
+                  onContinuarAtendimento(activeSession.mesaNumero)
+                } else {
+                  onSelectMesa(activeSession.mesaNumero)
+                }
+              }}
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black text-sm h-12 shadow-lg shadow-amber-950/50 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.99]"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Continuar meu atendimento — Mesa {activeSession.mesaNumero}</span>
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        )}
 
         {/* Alerta de erro / Mesa ocupada */}
         {activeError && (
@@ -306,22 +467,29 @@ export function MesaSelector({
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5 pt-1">
                 {sortedMesas.map((mesa) => {
                   const isLivre = mesa.status === 'Livre'
+                  const isMinhaMesa =
+                    sessaoValidaNoBanco && activeSession && activeSession.mesaNumero === mesa.numero
+                  const podeAcessar = isLivre || isMinhaMesa
 
                   return (
                     <button
                       key={mesa.id}
                       type="button"
-                      disabled={!isLivre}
+                      disabled={!podeAcessar}
                       onClick={() => attemptSelect(mesa.numero)}
                       title={
-                        isLivre
-                          ? `Mesa ${mesa.numero} Livre - Clique para abrir o cardápio`
-                          : `Mesa ${mesa.numero} (${mesa.status}) - Indisponível`
+                        isMinhaMesa
+                          ? `Mesa ${mesa.numero} — Seu atendimento ativo! Clique para continuar.`
+                          : isLivre
+                            ? `Mesa ${mesa.numero} Livre - Clique para abrir o cardápio`
+                            : `Mesa ${mesa.numero} (${mesa.status}) - Indisponível`
                       }
                       className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-between relative group ${
-                        isLivre
-                          ? 'bg-[#1C1917] hover:bg-amber-500 hover:border-amber-400 border-emerald-500/40 text-stone-100 hover:text-stone-950 cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.03]'
-                          : 'bg-stone-900/60 border-stone-800 text-stone-500 cursor-not-allowed opacity-60'
+                        isMinhaMesa
+                          ? 'bg-amber-500/20 hover:bg-amber-500 hover:border-amber-400 border-amber-500 text-amber-200 hover:text-stone-950 cursor-pointer shadow-md shadow-amber-950/40 ring-2 ring-amber-500/40 hover:scale-[1.03]'
+                          : isLivre
+                            ? 'bg-[#1C1917] hover:bg-amber-500 hover:border-amber-400 border-emerald-500/40 text-stone-100 hover:text-stone-950 cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.03]'
+                            : 'bg-stone-900/60 border-stone-800 text-stone-500 cursor-not-allowed opacity-60'
                       }`}
                     >
                       <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">
@@ -329,7 +497,12 @@ export function MesaSelector({
                       </span>
                       <span className="text-lg font-black tabular-nums my-0.5">{mesa.numero}</span>
                       <div className="flex items-center gap-1 text-[10px] font-semibold mt-0.5">
-                        {isLivre ? (
+                        {isMinhaMesa ? (
+                          <span className="text-amber-400 group-hover:text-stone-950 font-bold flex items-center gap-0.5">
+                            <RotateCcw className="w-3 h-3" />
+                            Minha Mesa
+                          </span>
+                        ) : isLivre ? (
                           <span className="text-emerald-400 group-hover:text-stone-950 flex items-center gap-0.5">
                             <CheckCircle2 className="w-3 h-3" />
                             Livre

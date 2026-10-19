@@ -83,6 +83,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   onRefresh,
 }) => {
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalConfirmacaoFinalOpen, setModalConfirmacaoFinalOpen] = useState(false)
   const [formaSelecionada, setFormaSelecionada] = useState<PaymentMethod>('Pix')
 
   const rawStatusConta: StatusContaCliente = detalhesConta?.statusConta || 'nenhum'
@@ -101,10 +102,24 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   const subtotal = detalhesConta?.subtotal || 0
   const taxaServico = detalhesConta?.taxaServico || 0
 
-  const handleConfirmarPedidoConta = async () => {
-    await onPedirConta(formaSelecionada)
+  // Passo 1: O cliente seleciona a forma de pagamento e clica em avançar para conferir e confirmar
+  const handleAvancarParaConfirmacao = () => {
     setModalOpen(false)
+    setModalConfirmacaoFinalOpen(true)
   }
+
+  // Passo 2: O cliente confirma no modal de salvaguarda anti-toque acidental
+  const handleConfirmarPedidoContaDefinitivo = async () => {
+    try {
+      await onPedirConta(formaSelecionada)
+      setModalConfirmacaoFinalOpen(false)
+    } catch {
+      // Se falhar, mantém aberto para tentar novamente
+    }
+  }
+
+  const formaObj = FORMAS_PAGAMENTO.find((f) => f.id === formaSelecionada)
+  const FormaIcon = formaObj?.icone || Receipt
 
   // Se a comanda estiver fechada (e a mesa NÃO estiver ocupada em novo atendimento)
   if (statusConta === 'fechada') {
@@ -446,23 +461,107 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
                 disabled={submittingConta}
                 className="flex-1 text-stone-400 hover:text-stone-200 text-xs"
               >
-                Voltar
+                Cancelar
               </Button>
               <Button
                 type="button"
-                onClick={handleConfirmarPedidoConta}
+                onClick={handleAvancarParaConfirmacao}
                 disabled={submittingConta}
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-10 shadow-md shadow-amber-950/40 flex items-center justify-center gap-1.5"
+              >
+                <span>Avançar para confirmação</span>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação Explícita de Fechamento (Etapa de Salvaguarda Anti-Toque Acidental) */}
+      <Dialog open={modalConfirmacaoFinalOpen} onOpenChange={setModalConfirmacaoFinalOpen}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-2 border-amber-500/60 text-stone-100 p-5 sm:p-6">
+          <DialogHeader>
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 border border-amber-500/50">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <DialogTitle className="text-center text-lg font-black text-stone-100">
+              Confirmar Pedido de Fechamento?
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs text-stone-300">
+              Ao confirmar, a equipe do Caixa receberá o aviso imediato para fechar a{' '}
+              <strong className="text-amber-400">Mesa {mesaNumero}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1">
+            {/* Resumo visual compacto dos valores e da forma de pagamento */}
+            <div className="p-4 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2.5 text-xs">
+              <div className="flex items-center justify-between text-stone-400">
+                <span>Subtotal ({detalhesConta?.itens?.length || 0} itens consumidos):</span>
+                <span className="font-semibold text-stone-200 tabular-nums">
+                  R$ {subtotal.toFixed(2)}
+                </span>
+              </div>
+
+              {taxaServico > 0 && (
+                <div className="flex items-center justify-between text-stone-400">
+                  <span>Taxa de serviço ({detalhesConta?.taxaPercentual || 10}%):</span>
+                  <span className="font-semibold text-stone-200 tabular-nums">
+                    + R$ {taxaServico.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#44403C]">
+                <span className="font-bold text-stone-200">Forma de pagamento escolhida:</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-400 font-extrabold">
+                  <FormaIcon className="w-3.5 h-3.5" />
+                  {formaObj?.nome || formaSelecionada}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#44403C] font-black text-base">
+                <span className="text-stone-100">Total Final da Conta:</span>
+                <span className="text-xl text-amber-400 tabular-nums">R$ {total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-200 leading-relaxed flex items-start gap-2">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Certifique-se de que ninguém da mesa irá pedir novos itens antes de fechar a conta.
+              </span>
+            </div>
+
+            {/* Ações de Confirmação Explícita */}
+            <div className="flex gap-2.5 pt-2 border-t border-[#44403C]">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setModalConfirmacaoFinalOpen(false)
+                  setModalOpen(true)
+                }}
+                disabled={submittingConta}
+                className="flex-1 bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-xs h-11"
+              >
+                Voltar e alterar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmarPedidoContaDefinitivo}
+                disabled={submittingConta}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-11 shadow-lg shadow-amber-950/50 flex items-center justify-center gap-1.5 transition-transform active:scale-[0.98]"
               >
                 {submittingConta ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Enviando...</span>
+                    <span>Avisando o Caixa...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Confirmar Pedido</span>
+                    <span>Confirmar pedido da conta</span>
                   </>
                 )}
               </Button>

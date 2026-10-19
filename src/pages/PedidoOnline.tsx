@@ -43,6 +43,7 @@ import {
 import { DetalhesContaMesa, PaymentMethod } from '@/types/bar'
 import { BarService } from '@/services/barService'
 import { SoundEffects } from '@/lib/soundEffects'
+import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
 
 interface CartItem {
   product: MenuItem
@@ -114,13 +115,25 @@ export default function PedidoOnline() {
   // Acompanhamento do status do pedido em tempo real
   const [trackedItems, setTrackedItems] = useState<TrackedOrderItem[]>([])
   const [activeComandaId, setActiveComandaId] = useState<string>(() => {
-    return localStorage.getItem(`rachide_active_cmd_mesa_${mesaParam || 0}`) || ''
+    return (
+      AtendimentoStorage.getComandaIdForMesa(mesaParam || 0) ||
+      localStorage.getItem(`rachide_active_cmd_mesa_${mesaParam || 0}`) ||
+      ''
+    )
   })
   const [trackingLoading, setTrackingLoading] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('rachide_bar_client_sound')
     return saved !== null ? saved === 'true' : true
   })
+
+  // Estado da sessão local ativa de atendimento
+  const [atendimentoAtivo, setAtendimentoAtivo] = useState<AtendimentoAtivoLocal | null>(() => {
+    return AtendimentoStorage.get()
+  })
+
+  // Modal de confirmação ao sair da tela da mesa (trocar mesa / voltar)
+  const [modalConfirmarSaidaOpen, setModalConfirmarSaidaOpen] = useState(false)
 
   // Estado do fluxo Pedir a Conta
   const [detalhesConta, setDetalhesConta] = useState<DetalhesContaMesa | null>(null)
@@ -230,7 +243,11 @@ export default function PedidoOnline() {
         // Se uma mesa veio na URL (ex: /pedido/4), validar se ela está livre
         if (mesaParam > 0) {
           const currentMesa = mappedMesas.find((m) => m.numero === mesaParam)
-          if (currentMesa && currentMesa.status !== 'Livre') {
+          const storedAtendimento = AtendimentoStorage.get()
+          const isMinhaMesa = storedAtendimento && storedAtendimento.mesaNumero === mesaParam
+
+          // Se a mesa estiver ocupada por OUTRO aparelho, bloqueia; se for deste aparelho, permite continuar!
+          if (currentMesa && currentMesa.status !== 'Livre' && !isMinhaMesa) {
             const motivo =
               currentMesa.status === 'Ocupada'
                 ? 'já está ocupada'
@@ -242,6 +259,9 @@ export default function PedidoOnline() {
               `A Mesa ${mesaParam} não está disponível (${motivo}). Por favor, escolha uma mesa desocupada ou solicite auxílio ao garçom.`,
             )
             setMesaNum(0)
+          } else if (isMinhaMesa) {
+            // Mesa é do cliente: garante que erros anteriores sejam limpos e o atendimento mantido
+            setMesaBlockedError(null)
           }
         }
       }
@@ -568,6 +588,91 @@ export default function PedidoOnline() {
     })
   }
 
+  // Persistência do carrinho em localStorage vinculado à mesa para manter intacto ao sair/voltar
+  useEffect(() => {
+    if (mesaNum > 0) {
+      try {
+        const key = `rachide_cart_mesa_${mesaNum}`
+        const saved = localStorage.getItem(key)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed) && parsed.length > 0 && cart.length === 0) {
+            setCart(parsed)
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar carrinho salvo da mesa:', err)
+      }
+    }
+  }, [mesaNum])
+
+  useEffect(() => {
+    if (mesaNum > 0) {
+      try {
+        const key = `rachide_cart_mesa_${mesaNum}`
+        if (cart.length > 0) {
+          localStorage.setItem(key, JSON.stringify(cart))
+        } else {
+          localStorage.removeItem(key)
+        }
+      } catch (err) {
+        console.warn('Erro ao salvar carrinho no localStorage:', err)
+      }
+    }
+  }, [cart, mesaNum])
+
+  // Persiste atendimento localmente sempre que o cliente entrar numa mesa
+  useEffect(() => {
+    if (mesaNum > 0) {
+      const defaultComandaId = `cmd-${mesaNum < 10 ? `0${mesaNum}` : mesaNum}`
+      const targetComanda = activeComandaId || defaultComandaId
+      AtendimentoStorage.set({
+        mesaNumero: mesaNum,
+        comandaId: targetComanda,
+        clienteNome: clientName || undefined,
+      })
+      setAtendimentoAtivo(AtendimentoStorage.get())
+    }
+  }, [mesaNum, activeComandaId, clientName])
+
+  // Interceptar botão Voltar do navegador via popstate quando estiver dentro de uma mesa ativa
+  useEffect(() => {
+    if (mesaNum <= 0) return
+
+    // Adiciona uma entrada extra no histórico para interceptar o primeiro clique de "Voltar"
+    const currentState = window.history.state || {}
+    if (!currentState.inMesa) {
+      window.history.pushState({ inMesa: true, mesaNum }, '', window.location.href)
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Se o cliente tentar voltar e estiver em uma mesa ativa, interrompe e abre confirmação
+      e.preventDefault()
+      // Empurra o estado novamente para reter a tela até confirmação
+      window.history.pushState({ inMesa: true, mesaNum }, '', window.location.href)
+      setModalConfirmarSaidaOpen(true)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [mesaNum])
+
+  // Executa a saída da tela da mesa de forma segura (preservando o atendimento no localStorage)
+  const executarSaidaMesa = () => {
+    setModalConfirmarSaidaOpen(false)
+    setMesaBlockedError(null)
+    setMesaNum(0)
+    setAtendimentoAtivo(AtendimentoStorage.get())
+    navigate('/pedido', { replace: true })
+    toast({
+      title: `Atendimento na Mesa ${mesaNum} permanece aberto`,
+      description: 'Você pode voltar a qualquer momento selecionando "Continuar meu atendimento".',
+    })
+  }
+
   // Enviar pedido via RPC do Supabase
   const handleSendOrder = async () => {
     if (cart.length === 0) return
@@ -596,7 +701,12 @@ export default function PedidoOnline() {
       const targetComandaId = res?.comanda_id || `cmd-${mesaNum > 0 ? mesaNum : 10}`
 
       setActiveComandaId(targetComandaId)
-      localStorage.setItem(`rachide_active_cmd_mesa_${mesaNum || 0}`, targetComandaId)
+      AtendimentoStorage.set({
+        mesaNumero: mesaNum > 0 ? mesaNum : 10,
+        comandaId: targetComandaId,
+        clienteNome: clientName.trim() || undefined,
+      })
+      setAtendimentoAtivo(AtendimentoStorage.get())
 
       setOrderSuccess({
         comandaId: targetComandaId,
@@ -604,6 +714,11 @@ export default function PedidoOnline() {
         total: totalCalculado,
       })
       setCart([])
+      try {
+        localStorage.removeItem(`rachide_cart_mesa_${mesaNum}`)
+      } catch {
+        /* intentionally ignored */
+      }
       setCartOpen(false)
 
       // Atualiza imediatamente o acompanhamento ao vivo do pedido
@@ -646,12 +761,24 @@ export default function PedidoOnline() {
         mesas={mesasBanco}
         loadingMesas={loadingMesas}
         errorBanner={mesaBlockedError}
+        atendimentoAtivo={atendimentoAtivo}
         onClearError={() => setMesaBlockedError(null)}
+        onContinuarAtendimento={(num) => {
+          setMesaBlockedError(null)
+          setMesaNum(num)
+          navigate(`/pedido/${num}`, { replace: true })
+          toast({
+            title: `Bem-vindo de volta à Mesa ${num}!`,
+            description: 'Seu atendimento, consumo e pedidos continuam intactos.',
+          })
+        }}
         onSelectMesa={(num) => {
           setMesaBlockedError(null)
           setDetalhesConta(null)
           setTrackedItems([])
           setMesaNum(num)
+          AtendimentoStorage.set({ mesaNumero: num })
+          setAtendimentoAtivo(AtendimentoStorage.get())
           navigate(`/pedido/${num}`, { replace: true })
         }}
       />
@@ -729,10 +856,8 @@ export default function PedidoOnline() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setDetalhesConta(null)
-                setTrackedItems([])
-                setMesaNum(0)
-                navigate('/pedido', { replace: true })
+                // Intercepta a saída da mesa com confirmação acolhedora
+                setModalConfirmarSaidaOpen(true)
               }}
               className="bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-[11px] h-7 px-2"
             >
@@ -1290,6 +1415,58 @@ export default function PedidoOnline() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação ao Sair da Tela da Mesa */}
+      <Dialog open={modalConfirmarSaidaOpen} onOpenChange={setModalConfirmarSaidaOpen}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-5 sm:p-6">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 border border-amber-500/40">
+              <Beer className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-center text-lg font-black text-stone-100">
+              Seu atendimento na Mesa {mesaNum} está aberto
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1 text-center">
+            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+              Deseja realmente sair da tela da mesa? Seu consumo, pedidos e carrinho{' '}
+              <strong className="text-amber-400">permanecem salvos</strong> e você poderá voltar a
+              qualquer momento selecionando a <strong>Mesa {mesaNum}</strong> ou pelo atalho{' '}
+              <strong className="text-amber-400">"Continuar meu atendimento"</strong>.
+            </p>
+
+            <div className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] text-left text-xs space-y-1">
+              <div className="flex items-center justify-between text-stone-400">
+                <span>Mesa conectada:</span>
+                <span className="font-bold text-amber-400">Mesa {mesaNum}</span>
+              </div>
+              <div className="flex items-center justify-between text-stone-400">
+                <span>Status da comanda:</span>
+                <span className="text-emerald-400 font-semibold">Em andamento</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 pt-2 border-t border-[#44403C]">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setModalConfirmarSaidaOpen(false)}
+                className="flex-1 bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-200 text-xs h-10"
+              >
+                Continuar na Mesa {mesaNum}
+              </Button>
+              <Button
+                type="button"
+                onClick={executarSaidaMesa}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-10 shadow-md shadow-amber-950/40"
+              >
+                Sair mesmo assim
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
