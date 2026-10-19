@@ -336,12 +336,13 @@ export const BarService = {
         origemOnline: Boolean(ci.origem_online),
       }))
 
-      // Salvaguarda: se a mesa/comanda estiver Ocupada e statusConta for 'fechada', sanitiza para 'nenhum'
+      // Salvaguarda: se a mesa for Livre OU (Ocupada e statusConta for 'fechada'), sanitiza para 'nenhum'
       const rawStatusConta = (c?.status_conta as StatusContaCliente) || 'nenhum'
       const statusMesa = (m.status as TableStatus) || 'Livre'
+      const isLivre = statusMesa === 'Livre'
       const isOcupada = statusMesa === 'Ocupada' || c?.status === 'Ocupada'
       const statusContaSanitizado: StatusContaCliente =
-        isOcupada && rawStatusConta === 'fechada' ? 'nenhum' : rawStatusConta
+        isLivre || (isOcupada && rawStatusConta === 'fechada') ? 'nenhum' : rawStatusConta
       const contaSolicitadaSanitizada =
         statusContaSanitizado === 'nenhum' ? false : Boolean(c?.conta_solicitada)
 
@@ -410,6 +411,33 @@ export const BarService = {
 
     // Limpa itens antigos se houver
     await db.from('comanda_itens').delete().eq('comanda_id', comandaId)
+  },
+
+  /**
+   * Inicia atendimento on-line registrando o nome do cliente na comanda
+   * e resetando todo estado residual de conta
+   */
+  async iniciarAtendimentoOnline(
+    mesaNumero: number,
+    clienteNome: string,
+  ): Promise<{
+    sucesso: boolean
+    comanda_id?: string
+    mesa_numero?: number
+    cliente_nome?: string
+    mensagem: string
+  }> {
+    const { data, error } = await db.rpc('iniciar_atendimento_online', {
+      p_mesa_numero: mesaNumero,
+      p_cliente_nome: clienteNome,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC iniciar_atendimento_online:', error)
+      throw error
+    }
+
+    return data
   },
 
   async addItemToComanda(tableNumber: number, item: MenuItem, quantity = 1): Promise<void> {
@@ -1044,12 +1072,13 @@ export const BarService = {
       throw error
     }
 
-    // Salvaguarda adicional no cliente: se statusMesa for Ocupada e statusConta for fechada, sanitizar para nenhum
+    // Salvaguarda estrita no cliente: se statusMesa for Livre OU (Ocupada e statusConta fechada), sanitizar para nenhum
     const rawStatus = (data?.status_conta as StatusContaCliente) || 'nenhum'
     const statusMesa = data?.status_mesa
+    const isLivre = statusMesa === 'Livre'
     const isOcupada = statusMesa === 'Ocupada'
     const statusContaSanitizado: StatusContaCliente =
-      isOcupada && rawStatus === 'fechada' ? 'nenhum' : rawStatus
+      isLivre || (isOcupada && rawStatus === 'fechada') ? 'nenhum' : rawStatus
 
     return {
       encontrada: Boolean(data?.encontrada),
