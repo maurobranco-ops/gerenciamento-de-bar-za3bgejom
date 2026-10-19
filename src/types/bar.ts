@@ -144,5 +144,8 @@ export interface BarSettings {
   impressoraFiscalAtiva: boolean
   impressoraCozinhaNome: string
   impressoraCozinhaAtiva: boolean
+  pixChave: string
+  pixBeneficiarioNome: string
+  pixCidade: string
   updatedAt?: string
 }

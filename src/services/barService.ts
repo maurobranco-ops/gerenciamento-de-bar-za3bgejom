@@ -30,6 +30,9 @@ export const DEFAULT_BAR_SETTINGS: BarSettings = {
   impressoraFiscalAtiva: true,
   impressoraCozinhaNome: 'Bematech MP-4200 TH (Cozinha)',
   impressoraCozinhaAtiva: true,
+  pixChave: '14293842000184',
+  pixBeneficiarioNome: 'Rachide Bar',
+  pixCidade: 'SAO PAULO',
 }
 
 // Bypass de tipo estático enquanto os types do Supabase gerados automaticamente não refletem a nova migração
@@ -991,6 +994,9 @@ export const BarService = {
       impressoraCozinhaNome:
         data.impressora_cozinha_nome || DEFAULT_BAR_SETTINGS.impressoraCozinhaNome,
       impressoraCozinhaAtiva: data.impressora_cozinha_ativa ?? true,
+      pixChave: data.pix_chave ?? DEFAULT_BAR_SETTINGS.pixChave,
+      pixBeneficiarioNome: data.pix_beneficiario_nome || DEFAULT_BAR_SETTINGS.pixBeneficiarioNome,
+      pixCidade: data.pix_cidade || DEFAULT_BAR_SETTINGS.pixCidade,
       updatedAt: data.updated_at,
     }
   },
@@ -1021,6 +1027,10 @@ export const BarService = {
       payload.impressora_cozinha_nome = settings.impressoraCozinhaNome
     if (settings.impressoraCozinhaAtiva !== undefined)
       payload.impressora_cozinha_ativa = settings.impressoraCozinhaAtiva
+    if (settings.pixChave !== undefined) payload.pix_chave = settings.pixChave
+    if (settings.pixBeneficiarioNome !== undefined)
+      payload.pix_beneficiario_nome = settings.pixBeneficiarioNome
+    if (settings.pixCidade !== undefined) payload.pix_cidade = settings.pixCidade
 
     const { data, error } = await db
       .from('configuracoes_bar')
@@ -1047,6 +1057,9 @@ export const BarService = {
       impressoraFiscalAtiva: data.impressora_fiscal_ativa,
       impressoraCozinhaNome: data.impressora_cozinha_nome,
       impressoraCozinhaAtiva: data.impressora_cozinha_ativa,
+      pixChave: data.pix_chave ?? DEFAULT_BAR_SETTINGS.pixChave,
+      pixBeneficiarioNome: data.pix_beneficiario_nome || DEFAULT_BAR_SETTINGS.pixBeneficiarioNome,
+      pixCidade: data.pix_cidade || DEFAULT_BAR_SETTINGS.pixCidade,
       updatedAt: data.updated_at,
     }
   },

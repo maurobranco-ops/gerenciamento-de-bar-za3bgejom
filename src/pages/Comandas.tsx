@@ -18,6 +18,9 @@ import {
   Percent,
   Clock,
   ArrowRight,
+  Copy,
+  AlertTriangle,
+  Settings as SettingsIcon,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { TableStatus, Comanda, MenuItem, PaymentMethod } from '../types/bar'
@@ -29,6 +32,8 @@ import { Label } from '../components/ui/label'
 import { Switch } from '../components/ui/switch'
 import { useToast } from '../hooks/use-toast'
 import { printComandaAccount } from '../lib/thermalPrinter'
+import { QRCodeSVG } from '../components/QRCodeSVG'
+import { generatePixBRCode, isPixConfigured } from '../lib/pix'
 export default function Comandas() {
   const {
     role,
@@ -64,8 +69,10 @@ export default function Comandas() {
   const [cashAmountPaid, setCashAmountPaid] = useState<string>('')
   const [splitBillEnabled, setSplitBillEnabled] = useState(false)
   const [splitGuests, setSplitGuests] = useState<number>(2)
+  const [copiedPixCode, setCopiedPixCode] = useState(false)
+  const [isFinishingManual, setIsFinishingManual] = useState(false)
 
-  // Simulation steps: idle -> sending_tep -> whatsapp_chat -> success
+  // Simulation steps for non-Pix methods (TEP flow): idle -> sending_tep -> whatsapp_chat -> success
   const [paymentPhase, setPaymentPhase] = useState<
     'idle' | 'sending_tep' | 'whatsapp_chat' | 'success'
   >('idle')
@@ -192,14 +199,84 @@ export default function Comandas() {
     setChatStep(0)
     setSplitBillEnabled(false)
     setSplitGuests(currentComanda.guestCount > 1 ? currentComanda.guestCount : 2)
+    setCopiedPixCode(false)
+    setIsFinishingManual(false)
     const total = computeTotal(currentComanda)
     setCashAmountPaid(Math.ceil(total).toFixed(2))
     setPaymentModalOpen(true)
   }
 
-  // Execute Simulated Payment with TEP/WhatsApp Flow
+  // Copiar código Pix Copia e Cola
+  const handleCopyPixCode = async (pixCode: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(pixCode)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = pixCode
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      setCopiedPixCode(true)
+      toast({
+        title: 'Código Pix copiado!',
+        description: 'Cole no aplicativo do seu banco para pagar.',
+      })
+      setTimeout(() => setCopiedPixCode(false), 2500)
+    } catch (err) {
+      console.error('Erro ao copiar código Pix:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível copiar',
+        description: 'Selecione o texto manualmente para copiar.',
+      })
+    }
+  }
+
+  // Confirmação manual de pagamento (Caixa/Gerente confere recebimento na conta do bar)
+  const handleManualConfirmPix = async () => {
+    if (!activePayingComanda) return
+    const total = computeTotal(activePayingComanda)
+
+    setIsFinishingManual(true)
+    try {
+      await closeAndPayComanda(
+        activePayingComanda.tableNumber,
+        'Pix',
+        total,
+        splitBillEnabled ? splitGuests : 1,
+      )
+      setPaymentModalOpen(false)
+      setActivePayingComanda(null)
+      navigate('/fluxo-caixa')
+    } finally {
+      setIsFinishingManual(false)
+    }
+  }
+
+  // Execute Simulated Payment for TEP/Cartão
   const handleConfirmPayment = () => {
     if (!activePayingComanda) return
+
+    // Dinheiro finaliza imediatamente sem simulação de maquininha
+    if (selectedPaymentMethod === 'Dinheiro') {
+      const total = computeTotal(activePayingComanda)
+      closeAndPayComanda(
+        activePayingComanda.tableNumber,
+        'Dinheiro',
+        total,
+        splitBillEnabled ? splitGuests : 1,
+      )
+      setPaymentModalOpen(false)
+      setActivePayingComanda(null)
+      navigate('/fluxo-caixa')
+      return
+    }
 
     // Trigger step 1: sending_tep
     setPaymentPhase('sending_tep')
@@ -801,6 +878,214 @@ export default function Comandas() {
                 </div>
               </div>
 
+              {/* Pagamento Pix Real (Padrão BR Code Banco Central) */}
+              {selectedPaymentMethod === 'Pix' &&
+                (() => {
+                  const totalComanda = computeTotal(activePayingComanda)
+                  const pixValido = isPixConfigured(settings)
+
+                  let pixPayload = ''
+                  let pixError = ''
+
+                  if (pixValido) {
+                    try {
+                      pixPayload = generatePixBRCode({
+                        pixKey: settings.pixChave,
+                        merchantName: settings.pixBeneficiarioNome,
+                        merchantCity: settings.pixCidade,
+                        amount: totalComanda,
+                        txid: `MESA${activePayingComanda.tableNumber}`,
+                        description: `Mesa ${activePayingComanda.tableNumber}`,
+                      })
+                    } catch (err: any) {
+                      pixError = err.message || 'Erro ao montar código BR Code'
+                    }
+                  }
+
+                  if (!pixValido) {
+                    return (
+                      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-200 text-xs space-y-2">
+                        <div className="flex items-center gap-2 font-bold text-amber-400">
+                          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                          <span>Configuração da Chave Pix pendente</span>
+                        </div>
+                        <p className="text-stone-300">
+                          Para gerar o QR Code Pix real do Banco Central, o Gerente precisa
+                          cadastrar a Chave Pix (CNPJ), Nome e Cidade do recebedor nas
+                          Configurações.
+                        </p>
+                        {role === 'Gerente' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setPaymentModalOpen(false)
+                              navigate('/configuracoes')
+                            }}
+                            className="bg-amber-500 text-stone-950 font-bold border-amber-600 hover:bg-amber-400 text-xs mt-1"
+                          >
+                            <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
+                            Ir para Configurações
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  }
+
+                  if (pixError) {
+                    return (
+                      <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/40 text-red-300 text-xs">
+                        <div className="flex items-center gap-2 font-bold">
+                          <AlertTriangle className="w-4 h-4 text-red-400" />
+                          <span>Não foi possível gerar o código Pix: {pixError}</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-[#1C1917] border border-[#44403C] space-y-4 animate-fade-in-up">
+                      <div className="flex items-center justify-between border-b border-[#292524] pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-400">
+                            <QrCode className="w-4 h-4 text-teal-400" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-stone-100 flex items-center gap-1.5">
+                              <span>QR Code Pix do Banco Central</span>
+                              <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[9px] font-semibold">
+                                BR Code Oficial
+                              </Badge>
+                            </div>
+                            <p className="text-[10px] text-stone-400">
+                              Aponte a câmera do aplicativo do seu banco para pagar
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-stone-400 uppercase tracking-wider block">
+                            Valor da Comanda
+                          </span>
+                          <span className="text-base font-black text-amber-400 tabular-nums">
+                            R$ {totalComanda.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* QR Code Real centralizado com dados do recebedor */}
+                      <div className="flex flex-col sm:flex-row items-center gap-4 bg-[#24201e] p-3.5 rounded-xl border border-[#383330]">
+                        <div className="bg-white p-2 rounded-xl shadow-lg flex-shrink-0">
+                          <QRCodeSVG value={pixPayload} size={150} margin={1} />
+                        </div>
+
+                        <div className="space-y-1.5 text-xs flex-1 w-full text-center sm:text-left">
+                          <div className="text-[11px] text-stone-400">
+                            Beneficiário:{' '}
+                            <span className="font-semibold text-stone-200">
+                              {settings.pixBeneficiarioNome || 'Rachide Bar'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-stone-400">
+                            Chave Pix (CNPJ):{' '}
+                            <span className="font-mono text-stone-200">{settings.pixChave}</span>
+                          </div>
+                          <div className="text-[11px] text-stone-400">
+                            Cidade:{' '}
+                            <span className="font-medium text-stone-200">
+                              {settings.pixCidade || 'SAO PAULO'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-emerald-400 font-medium flex items-center justify-center sm:justify-start gap-1 pt-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>QR Code estático com valor exato pré-definido</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pix Copia e Cola */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] text-stone-300 font-semibold flex items-center justify-between">
+                          <span>Código Pix Copia e Cola</span>
+                          <span className="text-[10px] text-stone-400 font-normal">
+                            Para clientes que pagam no mesmo celular
+                          </span>
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            readOnly
+                            value={pixPayload}
+                            onFocus={(e) => e.target.select()}
+                            className="bg-[#11100f] border-[#44403C] text-stone-200 text-xs font-mono select-all h-9 truncate"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyPixCode(pixPayload)}
+                            className="bg-[#292524] border-[#44403C] hover:border-amber-500 text-stone-200 hover:text-white text-xs h-9 px-3 flex-shrink-0 flex items-center gap-1.5"
+                          >
+                            {copiedPixCode ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Copiar Código</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Aviso de conferência manual */}
+                      <div className="p-2.5 rounded-lg bg-stone-900/80 border border-stone-800 text-[11px] text-stone-400 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-stone-300">Conferência manual:</strong> Aguarde o
+                          cliente apresentar o comprovante ou consulte o extrato da conta bancária
+                          antes de confirmar a liberação da mesa.
+                        </span>
+                      </div>
+
+                      {/* Botão de confirmação manual pelo Caixa */}
+                      <div className="pt-2 border-t border-[#292524] flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setPaymentModalOpen(false)}
+                          className="text-stone-400 text-xs"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={isFinishingManual}
+                          onClick={handleManualConfirmPix}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-stone-950 font-black text-xs px-5 h-9 shadow-md shadow-emerald-950/30 flex items-center gap-1.5"
+                        >
+                          {isFinishingManual ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Confirmando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>
+                                Confirmar Pagamento Pix Recebido (R$ {totalComanda.toFixed(2)})
+                              </span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })()}
+
               {/* Cash change calculator */}
               {selectedPaymentMethod === 'Dinheiro' && (
                 <div className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] grid grid-cols-2 gap-3 text-xs">
@@ -829,8 +1114,8 @@ export default function Comandas() {
                 </div>
               )}
 
-              {/* Simulation Flow Visualizer */}
-              {paymentPhase === 'sending_tep' && (
+              {/* Simulation Flow Visualizer for TEP / Cartão */}
+              {selectedPaymentMethod !== 'Pix' && paymentPhase === 'sending_tep' && (
                 <div className="p-6 rounded-2xl bg-[#1C1917] border border-amber-500/50 flex flex-col items-center justify-center text-center space-y-3 animate-fade-in-up">
                   <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
                   <div>
@@ -844,7 +1129,7 @@ export default function Comandas() {
                 </div>
               )}
 
-              {paymentPhase === 'whatsapp_chat' && (
+              {selectedPaymentMethod !== 'Pix' && paymentPhase === 'whatsapp_chat' && (
                 <div className="p-4 rounded-2xl bg-[#111B21] border border-[#2A3942] text-xs space-y-3 animate-fade-in-up shadow-xl">
                   {/* WhatsApp Header */}
                   <div className="flex items-center gap-2 pb-2 border-b border-[#2A3942]">
@@ -899,42 +1184,44 @@ export default function Comandas() {
                 </div>
               )}
 
-              {/* Confirm / Finish Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#44403C]">
-                {paymentPhase === 'idle' ? (
-                  <>
+              {/* Confirm / Finish Buttons for non-Pix methods */}
+              {selectedPaymentMethod !== 'Pix' && (
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#44403C]">
+                  {paymentPhase === 'idle' ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setPaymentModalOpen(false)}
+                        className="text-stone-400 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmPayment}
+                        className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs px-6"
+                      >
+                        Confirmar Pagamento (R$ {computeTotal(activePayingComanda).toFixed(2)})
+                      </Button>
+                    </>
+                  ) : chatStep >= 2 ? (
                     <Button
                       type="button"
-                      variant="ghost"
-                      onClick={() => setPaymentModalOpen(false)}
-                      className="text-stone-400 text-xs"
+                      onClick={handleFinishPaymentSuccess}
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-stone-950 font-black text-xs h-10 shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2"
                     >
-                      Cancelar
+                      <CheckCircle2 className="w-4 h-4" />
+                      Concluir e Registrar no Caixa
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={handleConfirmPayment}
-                      className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs px-6"
-                    >
-                      Confirmar Pagamento (R$ {computeTotal(activePayingComanda).toFixed(2)})
-                    </Button>
-                  </>
-                ) : chatStep >= 2 ? (
-                  <Button
-                    type="button"
-                    onClick={handleFinishPaymentSuccess}
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-stone-950 font-black text-xs h-10 shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Concluir e Registrar no Caixa
-                  </Button>
-                ) : (
-                  <div className="text-xs text-stone-400 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                    Processando fluxo simulado...
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="text-xs text-stone-400 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                      Processando fluxo simulado...
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

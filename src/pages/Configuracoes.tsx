@@ -9,10 +9,10 @@ import {
   RotateCcw,
   ShieldCheck,
   CheckCircle2,
-  FileText,
   Phone,
   MapPin,
   HelpCircle,
+  QrCode,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { BarSettings } from '../types/bar'
@@ -73,8 +73,8 @@ export default function Configuracoes() {
                 </Badge>
               </h2>
               <p className="text-xs text-stone-400 mt-1">
-                Ajuste de taxas de serviço e delivery, dados cadastrais do emitente fiscal e
-                impressoras.
+                Ajuste de taxas de serviço e delivery, recebimento Pix, dados cadastrais do emitente
+                fiscal e impressoras.
               </p>
             </div>
           </div>
@@ -158,7 +158,87 @@ export default function Configuracoes() {
           </div>
         </div>
 
-        {/* Bloco 2: Dados do Emitente Fiscal (Simulador SEFAZ) */}
+        {/* Bloco 2: Recebimento Pix (BR Code / Banco Central) */}
+        <div className="p-5 rounded-2xl bg-[#292524] border border-[#44403C] space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#44403C] pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/30">
+                <QrCode className="w-5 h-5 text-teal-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-stone-100 flex items-center gap-2">
+                  Recebimento Pix do Rachide Bar (BR Code Real)
+                  <Badge className="bg-teal-500/15 text-teal-300 border-teal-500/30 text-[10px]">
+                    Banco Central
+                  </Badge>
+                </h3>
+              </div>
+            </div>
+            <span className="text-[11px] text-stone-400 hidden sm:inline">
+              Utilizado no fechamento de mesa para gerar QR Code e Pix Copia e Cola
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="space-y-1.5 md:col-span-1">
+              <Label className="text-xs text-stone-300 font-semibold flex items-center gap-1.5">
+                <span>Chave Pix do Bar (CNPJ)</span>
+                <span className="text-amber-400">*</span>
+              </Label>
+              <Input
+                value={formData.pixChave}
+                onChange={(e) => setFormData((prev) => ({ ...prev, pixChave: e.target.value }))}
+                placeholder="Ex: 14.293.842/0001-84 ou 14293842000184"
+                className="bg-[#1C1917] border-[#44403C] text-stone-100 text-xs font-mono"
+                required
+              />
+              <p className="text-[11px] text-stone-400">
+                Chave utilizada para receber pagamentos de comandas via Pix no caixa (CNPJ).
+              </p>
+            </div>
+
+            <div className="space-y-1.5 md:col-span-1">
+              <Label className="text-xs text-stone-300 font-semibold flex items-center gap-1.5">
+                <span>Nome do Recebedor (Titular da Conta)</span>
+                <span className="text-amber-400">*</span>
+              </Label>
+              <Input
+                value={formData.pixBeneficiarioNome}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, pixBeneficiarioNome: e.target.value }))
+                }
+                placeholder="Ex: Rachide Bar"
+                maxLength={25}
+                className="bg-[#1C1917] border-[#44403C] text-stone-100 text-xs"
+                required
+              />
+              <p className="text-[11px] text-stone-400">
+                Nome que aparecerá no aplicativo do banco do cliente (máx. 25 caracteres).
+              </p>
+            </div>
+
+            <div className="space-y-1.5 md:col-span-1">
+              <Label className="text-xs text-stone-300 font-semibold flex items-center gap-1.5">
+                <span>Cidade do Recebedor</span>
+                <span className="text-amber-400">*</span>
+              </Label>
+              <Input
+                value={formData.pixCidade}
+                onChange={(e) => setFormData((prev) => ({ ...prev, pixCidade: e.target.value }))}
+                placeholder="Ex: SAO PAULO"
+                maxLength={15}
+                className="bg-[#1C1917] border-[#44403C] text-stone-100 text-xs"
+                required
+              />
+              <p className="text-[11px] text-stone-400">
+                Município da conta bancária conforme especificação do Banco Central (máx. 15
+                caracteres).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bloco 3: Dados do Emitente Fiscal (Simulador SEFAZ) */}
         <div className="p-5 rounded-2xl bg-[#292524] border border-[#44403C] space-y-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-[#44403C] pb-3">
             <div className="flex items-center gap-2">
@@ -245,7 +325,7 @@ export default function Configuracoes() {
           </div>
         </div>
 
-        {/* Bloco 3: Hardware e Impressoras Térmicas */}
+        {/* Bloco 4: Hardware e Impressoras Térmicas */}
         <div className="p-5 rounded-2xl bg-[#292524] border border-[#44403C] space-y-4 shadow-sm">
           <div className="flex items-center gap-2 border-b border-[#44403C] pb-3">
             <Printer className="w-5 h-5 text-amber-500" />
