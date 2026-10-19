@@ -117,7 +117,9 @@ export default function Dashboard() {
   const ocupacaoPercent =
     totalMesasCount > 0 ? Math.round((openComandasCount / totalMesasCount) * 100) : 0
 
-  const awaitingPaymentComandas = comandas.filter((c) => c.status === 'Aguardando Pagamento')
+  const awaitingPaymentComandas = comandas.filter(
+    (c) => c.status === 'Aguardando Pagamento' || c.contaSolicitada,
+  )
   const occupiedComandas = comandas.filter((c) => c.status === 'Ocupada')
 
   // Cozinha / Fila
@@ -769,16 +771,29 @@ export default function Dashboard() {
                             <span className="text-sm leading-none font-bold">{c.tableNumber}</span>
                           </div>
                           <div>
-                            <div className="font-bold text-stone-100 text-sm">
-                              Mesa {c.tableNumber}{' '}
+                            <div className="font-bold text-stone-100 text-sm flex items-center gap-2 flex-wrap">
+                              <span>Mesa {c.tableNumber}</span>
                               {c.clientName && (
                                 <span className="text-stone-400 font-normal">— {c.clientName}</span>
+                              )}
+                              {c.contaSolicitada && (
+                                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] font-bold py-0 h-4">
+                                  {c.formaPagamentoSolicitada || 'Pix'}
+                                </Badge>
                               )}
                             </div>
                             <div className="text-xs text-stone-400 flex items-center gap-2 mt-0.5">
                               <span>{c.items.length} itens</span>
                               <span>•</span>
                               <span>{c.guestCount} pessoa(s)</span>
+                              {c.formaPagamentoSolicitada && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-amber-400 font-medium">
+                                    Paga em {c.formaPagamentoSolicitada}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>

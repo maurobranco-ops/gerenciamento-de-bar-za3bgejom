@@ -58,6 +58,14 @@ export interface ComandaItem {
   origemOnline?: boolean
 }
 
+export type StatusContaCliente =
+  | 'nenhum'
+  | 'solicitada'
+  | 'autorizada'
+  | 'em_processamento_pix'
+  | 'fechada'
+  | 'recusada'
+
 export interface TableRecord {
   id: string
   numero: number
@@ -78,6 +86,38 @@ export interface Comanda {
   closedAt?: string
   includeServiceFee?: boolean
   capacity?: number
+  contaSolicitada?: boolean
+  contaSolicitadaEm?: string
+  formaPagamentoSolicitada?: PaymentMethod
+  statusConta?: StatusContaCliente
+  motivoRecusaConta?: string
+}
+
+export interface DetalhesContaMesa {
+  encontrada: boolean
+  comandaId?: string
+  mesaNumero?: number
+  clienteNome?: string
+  pessoas?: number
+  statusMesa?: TableStatus
+  contaSolicitada?: boolean
+  contaSolicitadaEm?: string
+  formaPagamentoSolicitada?: PaymentMethod
+  statusConta?: StatusContaCliente
+  motivoRecusaConta?: string
+  subtotal?: number
+  taxaPercentual?: number
+  taxaServico?: number
+  incluiTaxaServico?: boolean
+  total?: number
+  itens?: Array<{
+    id: string
+    nome_produto: string
+    preco_unitario: number
+    quantidade: number
+    observacoes?: string
+    origem_online?: boolean
+  }>
 }
 
 export type PaymentMethod = 'Dinheiro' | 'Cartão Débito' | 'Cartão Crédito' | 'Pix' | 'TEP'

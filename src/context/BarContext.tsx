@@ -81,6 +81,13 @@ interface BarContextType {
     amountPaid: number,
     splitGuests?: number,
   ) => Promise<void>
+  caixaAutorizarFecharConta: (params: {
+    mesaNumero: number
+    formaPagamento: PaymentMethod
+    valorPago: number
+    marcarEmProcessamentoPix?: boolean
+  }) => Promise<boolean>
+  caixaRecusarAdiarConta: (mesaNumero: number, motivo: string) => Promise<boolean>
 
   // Stock actions
   updateStockItem: (
@@ -231,13 +238,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadDataFromSupabase()
   }, [loadDataFromSupabase])
 
-  // Polling leve para Fila de Cozinha a cada 8 segundos se o usuário estiver ativo
+  // Polling leve para Fila de Cozinha e Comandas a cada 6 segundos se o usuário estiver ativo
   useEffect(() => {
     const interval = setInterval(() => {
+      // 1. Atualizar Fila de Cozinha
       BarService.fetchFilaCozinha()
         .then((items) => {
           setFilaCozinha((prev) => {
-            // Se prev for vazio no primeiro mount, não dispara alerta falso de "novo"
             if (prev.length === 0) return items
 
             const prevIds = new Set(prev.map((p) => p.id))
@@ -249,9 +256,6 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setUnreadOnlineOrdersCount((c) => c + newOnlineItems.length)
               setLastOnlineOrderId(newOnlineItems[0].id)
 
-              // Guarda restritiva: alertas sonoros e impressão automática só para usuário autenticado
-              // e em telas operacionais de atendimento (Fila de Cozinha e Comandas).
-              // NUNCA em /login, páginas públicas (/pedido) ou telas de gestão administrativa.
               const currentPath =
                 typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
               const isUserAuthenticated = Boolean(user)
@@ -264,14 +268,12 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const isOperacionalScreen =
                 isOperacionalKitchenRoute || isOperacionalKdsRoute || isOperacionalComandasRoute
 
-              // Dispara som de novo pedido apenas se logado, na tela operacional e com som ativo
               const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
               const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true
               if (isSoundOn && isUserAuthenticated && isOperacionalScreen) {
                 SoundEffects.playOrderAlert()
               }
 
-              // Disparo de impressão automática apenas se logado, na Fila de Cozinha e com toggle ativo
               const autoPrintStation =
                 localStorage.getItem('rachide_bar_autoprint_enabled') === 'true'
               if (autoPrintStation && isUserAuthenticated && isOperacionalKitchenRoute) {
@@ -285,10 +287,45 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         })
         .catch(() => {})
-    }, 8000)
+
+      // 2. Atualizar Comandas para capturar pedidos de conta em tempo real pelo Caixa
+      BarService.fetchComandas()
+        .then((latestComandas) => {
+          setComandas((prevComandas) => {
+            // Detectar novas solicitações de fechamento de conta
+            const prevSolicitadas = new Set(
+              prevComandas.filter((c) => c.contaSolicitada).map((c) => c.tableNumber),
+            )
+            const newlyRequested = latestComandas.filter(
+              (c) => c.contaSolicitada && !prevSolicitadas.has(c.tableNumber),
+            )
+
+            if (newlyRequested.length > 0) {
+              const currentPath =
+                typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
+              const isUserAuthenticated = Boolean(user)
+              const isOperacionalScreen =
+                currentPath === '/comandas' ||
+                currentPath.startsWith('/comandas/') ||
+                currentPath === '/' ||
+                currentPath === '/fluxo-caixa'
+
+              const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
+              const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true
+
+              if (isSoundOn && isUserAuthenticated && isOperacionalScreen) {
+                SoundEffects.playOrderAlert()
+              }
+            }
+
+            return latestComandas
+          })
+        })
+        .catch(() => {})
+    }, 6000)
 
     return () => clearInterval(interval)
-  }, [settings])
+  }, [settings, user])
 
   // Atualizar configurações do bar
   const updateSettings = async (newSettings: Partial<BarSettings>): Promise<boolean> => {
@@ -678,6 +715,110 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
+  const caixaAutorizarFecharConta = async (params: {
+    mesaNumero: number
+    formaPagamento: PaymentMethod
+    valorPago: number
+    marcarEmProcessamentoPix?: boolean
+  }): Promise<boolean> => {
+    if (!checkRoleAccess(['Caixa', 'Gerente'], 'fechar comanda no caixa')) return false
+
+    try {
+      const res = await BarService.caixaAutorizarFecharConta(params)
+      if (params.marcarEmProcessamentoPix) {
+        setComandas((prev) =>
+          prev.map((c) =>
+            c.tableNumber === params.mesaNumero ? { ...c, statusConta: 'em_processamento_pix' } : c,
+          ),
+        )
+        return true
+      }
+
+      // Homologação final: atualiza mesas e comandas
+      setComandas((prev) =>
+        prev.map((c) => {
+          if (c.tableNumber === params.mesaNumero) {
+            return {
+              ...c,
+              status: 'Livre',
+              statusConta: 'fechada',
+              contaSolicitada: false,
+              items: [],
+              clientName: undefined,
+              guestCount: 0,
+            }
+          }
+          return c
+        }),
+      )
+      setMesas((prev) =>
+        prev.map((m) => (m.numero === params.mesaNumero ? { ...m, status: 'Livre' } : m)),
+      )
+
+      // Recarrega movimentos de caixa e documentos fiscais
+      BarService.fetchCashMovements()
+        .then(setCashMovements)
+        .catch(() => {})
+      BarService.fetchFiscalDocs()
+        .then(setFiscalDocs)
+        .catch(() => {})
+
+      toast({
+        title: `Mesa ${params.mesaNumero} fechada com sucesso!`,
+        description: `Recebimento de R$ ${params.valorPago.toFixed(2)} via ${params.formaPagamento} registrado no caixa.`,
+      })
+      return true
+    } catch (err: any) {
+      console.error('Erro ao fechar comanda via RPC:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao autorizar e fechar comanda',
+        description: err.message || 'Falha ao registrar encerramento.',
+      })
+      return false
+    }
+  }
+
+  const caixaRecusarAdiarConta = async (mesaNumero: number, motivo: string): Promise<boolean> => {
+    if (!checkRoleAccess(['Caixa', 'Gerente'], 'recusar/adiar conta')) return false
+
+    try {
+      await BarService.caixaRecusarAdiarConta(mesaNumero, motivo)
+
+      // Atualiza comanda e mesa localmente
+      setComandas((prev) =>
+        prev.map((c) =>
+          c.tableNumber === mesaNumero
+            ? {
+                ...c,
+                status: 'Ocupada',
+                contaSolicitada: false,
+                statusConta: 'recusada',
+                motivoRecusaConta: motivo,
+              }
+            : c,
+        ),
+      )
+      setMesas((prev) =>
+        prev.map((m) => (m.numero === mesaNumero ? { ...m, status: 'Ocupada' } : m)),
+      )
+
+      toast({
+        title: `Solicitação da Mesa ${mesaNumero} adiada`,
+        description: `Mesa devolvida ao estado normal. Motivo enviado ao cliente: "${motivo}".`,
+      })
+      return true
+    } catch (err: any) {
+      console.error('Erro ao adiar/recusar conta:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao adiar solicitação',
+        description: err.message || 'Falha na comunicação com o banco.',
+      })
+      return false
+    }
+  }
+
   // --- ESTOQUE ---
   // --- CRUD GERENCIAL DE PRODUTOS ---
   const createProduct = async (payload: SaveProductPayload): Promise<boolean> => {
@@ -1054,6 +1195,8 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateComandaItemQuantity,
         toggleServiceFee,
         closeAndPayComanda,
+        caixaAutorizarFecharConta,
+        caixaRecusarAdiarConta,
         updateStockItem,
         addStockSupply,
         addCashMovement,

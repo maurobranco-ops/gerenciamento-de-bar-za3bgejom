@@ -34,6 +34,10 @@ import { useToast } from '../hooks/use-toast'
 import { printComandaAccount } from '../lib/thermalPrinter'
 import { QRCodeSVG } from '../components/QRCodeSVG'
 import { generatePixBRCode, isPixConfigured } from '../lib/pix'
+import { FilaComandasAguardandoPagamento } from '../components/FilaComandasAguardandoPagamento'
+import { ModalRecusarAdiarConta } from '../components/ModalRecusarAdiarConta'
+import { SoundEffects } from '../lib/soundEffects'
+
 export default function Comandas() {
   const {
     role,
@@ -44,6 +48,8 @@ export default function Comandas() {
     updateComandaItemQuantity,
     toggleServiceFee,
     closeAndPayComanda,
+    caixaAutorizarFecharConta,
+    caixaRecusarAdiarConta,
     settings,
   } = useBar()
 
@@ -77,6 +83,10 @@ export default function Comandas() {
     'idle' | 'sending_tep' | 'whatsapp_chat' | 'success'
   >('idle')
   const [chatStep, setChatStep] = useState<number>(0)
+
+  // Modal de Recusa / Adiamento com motivo
+  const [comandaParaRecusar, setComandaParaRecusar] = useState<Comanda | null>(null)
+  const [modalRecusarOpen, setModalRecusarOpen] = useState(false)
 
   // Keep selectedTable updated with context changes
   const currentComanda = selectedTable
@@ -238,6 +248,44 @@ export default function Comandas() {
     }
   }
 
+  // Mesas aguardando pagamento com solicitação ativa do cliente
+  const comandasAguardandoPagamento = visibleTables.filter(
+    (c) => c.status === 'Aguardando Pagamento' || c.contaSolicitada,
+  )
+
+  // Abrir modal de pagamento direto com a forma pré-selecionada pelo cliente
+  const handleAtenderComandaAguardando = (cmd: Comanda) => {
+    setActivePayingComanda(cmd)
+    setSelectedTable(null)
+    setPaymentPhase('idle')
+    setChatStep(0)
+    setSplitBillEnabled(false)
+    setSplitGuests(cmd.guestCount > 1 ? cmd.guestCount : 2)
+    setCopiedPixCode(false)
+    setIsFinishingManual(false)
+    const forma = cmd.formaPagamentoSolicitada || 'Pix'
+    setSelectedPaymentMethod(forma)
+    const total = computeTotal(cmd)
+    setCashAmountPaid(Math.ceil(total).toFixed(2))
+
+    // Se for Pix, já avisa o cliente que está em processamento Pix
+    if (forma === 'Pix') {
+      caixaAutorizarFecharConta({
+        mesaNumero: cmd.tableNumber,
+        formaPagamento: 'Pix',
+        valorPago: total,
+        marcarEmProcessamentoPix: true,
+      }).catch(() => {})
+    }
+
+    setPaymentModalOpen(true)
+  }
+
+  const handleAbrirRecusa = (cmd: Comanda) => {
+    setComandaParaRecusar(cmd)
+    setModalRecusarOpen(true)
+  }
+
   // Confirmação manual de pagamento (Caixa/Gerente confere recebimento na conta do bar)
   const handleManualConfirmPix = async () => {
     if (!activePayingComanda) return
@@ -245,36 +293,39 @@ export default function Comandas() {
 
     setIsFinishingManual(true)
     try {
-      await closeAndPayComanda(
-        activePayingComanda.tableNumber,
-        'Pix',
-        total,
-        splitBillEnabled ? splitGuests : 1,
-      )
-      setPaymentModalOpen(false)
-      setActivePayingComanda(null)
-      navigate('/fluxo-caixa')
+      const ok = await caixaAutorizarFecharConta({
+        mesaNumero: activePayingComanda.tableNumber,
+        formaPagamento: 'Pix',
+        valorPago: total,
+      })
+
+      if (ok) {
+        setPaymentModalOpen(false)
+        setActivePayingComanda(null)
+        navigate('/fluxo-caixa')
+      }
     } finally {
       setIsFinishingManual(false)
     }
   }
 
   // Execute Simulated Payment for TEP/Cartão
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (!activePayingComanda) return
 
     // Dinheiro finaliza imediatamente sem simulação de maquininha
     if (selectedPaymentMethod === 'Dinheiro') {
       const total = computeTotal(activePayingComanda)
-      closeAndPayComanda(
-        activePayingComanda.tableNumber,
-        'Dinheiro',
-        total,
-        splitBillEnabled ? splitGuests : 1,
-      )
-      setPaymentModalOpen(false)
-      setActivePayingComanda(null)
-      navigate('/fluxo-caixa')
+      const ok = await caixaAutorizarFecharConta({
+        mesaNumero: activePayingComanda.tableNumber,
+        formaPagamento: 'Dinheiro',
+        valorPago: total,
+      })
+      if (ok) {
+        setPaymentModalOpen(false)
+        setActivePayingComanda(null)
+        navigate('/fluxo-caixa')
+      }
       return
     }
 
@@ -293,25 +344,35 @@ export default function Comandas() {
     }, 2000)
   }
 
-  const handleFinishPaymentSuccess = () => {
+  const handleFinishPaymentSuccess = async () => {
     if (!activePayingComanda) return
     const total = computeTotal(activePayingComanda)
 
-    closeAndPayComanda(
-      activePayingComanda.tableNumber,
-      selectedPaymentMethod,
-      total,
-      splitBillEnabled ? splitGuests : 1,
-    )
+    const ok = await caixaAutorizarFecharConta({
+      mesaNumero: activePayingComanda.tableNumber,
+      formaPagamento: selectedPaymentMethod,
+      valorPago: total,
+    })
 
-    setPaymentModalOpen(false)
-    setPaymentPhase('idle')
-    setActivePayingComanda(null)
-    navigate('/fluxo-caixa')
+    if (ok) {
+      setPaymentModalOpen(false)
+      setPaymentPhase('idle')
+      setActivePayingComanda(null)
+      navigate('/fluxo-caixa')
+    }
   }
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* Fila de Comandas Aguardando Pagamento (Solicitações do On-line com som e notificação) */}
+      {(role === 'Caixa' || role === 'Gerente') && (
+        <FilaComandasAguardandoPagamento
+          comandasAguardando={comandasAguardandoPagamento}
+          onAtender={handleAtenderComandaAguardando}
+          onRecusarAdiar={handleAbrirRecusa}
+        />
+      )}
+
       {/* Top Bar with Filter & Status Legend */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-[#292524] border border-[#44403C]">
         <div>
@@ -368,6 +429,19 @@ export default function Comandas() {
           )}
         </div>
       </div>
+
+      {/* Modal para Recusar / Adiar Fechamento */}
+      <ModalRecusarAdiarConta
+        comanda={comandaParaRecusar}
+        open={modalRecusarOpen}
+        onClose={() => {
+          setModalRecusarOpen(false)
+          setComandaParaRecusar(null)
+        }}
+        onConfirm={async (mesaNumero, motivo) => {
+          return await caixaRecusarAdiarConta(mesaNumero, motivo)
+        }}
+      />
 
       {/* Visual Table Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 pb-6">
@@ -507,6 +581,11 @@ export default function Comandas() {
                   <DialogTitle className="text-lg sm:text-xl font-black text-stone-100 flex items-center gap-2 flex-wrap">
                     <span>Mesa {currentComanda.tableNumber}</span>
                     {getStatusBadge(currentComanda.status)}
+                    {currentComanda.contaSolicitada && (
+                      <Badge className="bg-purple-500 text-stone-950 font-black text-xs">
+                        Conta Solicitada ({currentComanda.formaPagamentoSolicitada || 'Pix'})
+                      </Badge>
+                    )}
                   </DialogTitle>
                   <p className="text-xs text-stone-400 mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <span className="font-medium text-stone-300">
@@ -651,6 +730,54 @@ export default function Comandas() {
                   ))}
                 </div>
               </div>
+
+              {/* Banner de Solicitação de Conta On-line se ativo nesta comanda */}
+              {currentComanda.contaSolicitada && (
+                <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-stone-100">
+                        Cliente solicitou a conta pelo celular
+                      </span>
+                      <p className="text-[11px] text-stone-300">
+                        Forma escolhida:{' '}
+                        <strong className="text-purple-300">
+                          {currentComanda.formaPagamentoSolicitada || 'Pix'}
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTable(null)
+                        handleAbrirRecusa(currentComanda)
+                      }}
+                      className="bg-[#1C1917] border-[#44403C] hover:border-red-500/40 text-stone-300 hover:text-red-400 text-xs h-8"
+                    >
+                      Adiar / Recusar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTable(null)
+                        handleAtenderComandaAguardando(currentComanda)
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs h-8"
+                    >
+                      Atender Agora
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Subtotal & 10% Toggle */}
               <div className="p-3.5 sm:p-4 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2.5">

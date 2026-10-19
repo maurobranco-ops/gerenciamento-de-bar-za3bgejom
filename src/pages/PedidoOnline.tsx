@@ -34,11 +34,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { QRCodeSVG } from '@/components/QRCodeSVG'
 import { MesaSelector } from '@/components/MesaSelector'
+import { PainelPedirContaCliente } from '@/components/PainelPedirContaCliente'
 import { useToast } from '@/hooks/use-toast'
 import {
   StatusAcompanhamentoPedido,
   TrackedOrderItem,
 } from '@/components/StatusAcompanhamentoPedido'
+import { DetalhesContaMesa, PaymentMethod } from '@/types/bar'
+import { BarService } from '@/services/barService'
 import { SoundEffects } from '@/lib/soundEffects'
 
 interface CartItem {
@@ -118,6 +121,11 @@ export default function PedidoOnline() {
     const saved = localStorage.getItem('rachide_bar_client_sound')
     return saved !== null ? saved === 'true' : true
   })
+
+  // Estado do fluxo Pedir a Conta
+  const [detalhesConta, setDetalhesConta] = useState<DetalhesContaMesa | null>(null)
+  const [loadingDetalhesConta, setLoadingDetalhesConta] = useState(false)
+  const [submittingConta, setSubmittingConta] = useState(false)
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
@@ -393,11 +401,34 @@ export default function PedidoOnline() {
     fetchOrderStatus()
   }, [fetchOrderStatus])
 
+  // Carregar detalhes da conta da mesa (saldo, itens, status da conta)
+  const fetchDetalhesConta = React.useCallback(
+    async (silent = false) => {
+      if (mesaNum <= 0) return
+      if (!silent) setLoadingDetalhesConta(true)
+      try {
+        const dados = await BarService.obterDetalhesContaMesa(mesaNum)
+        setDetalhesConta(dados)
+      } catch (err) {
+        console.warn('Erro ao carregar detalhes da conta da mesa:', err)
+      } finally {
+        if (!silent) setLoadingDetalhesConta(false)
+      }
+    },
+    [mesaNum],
+  )
+
+  useEffect(() => {
+    if (mesaNum > 0) {
+      fetchDetalhesConta()
+    }
+  }, [mesaNum, fetchDetalhesConta])
+
   // Supabase Realtime Subscription + Polling de fallback (4s)
   useEffect(() => {
     if (mesaNum <= 0 && !activeComandaId) return
 
-    // 1. Canal Realtime Supabase ouvindo mudanças em fila_cozinha
+    // 1. Canal Realtime Supabase ouvindo mudanças em fila_cozinha e comandas
     const channel = supabase
       .channel(`pedido-tracking-mesa-${mesaNum || 'delivery'}`)
       .on(
@@ -412,18 +443,63 @@ export default function PedidoOnline() {
           fetchOrderStatus(true)
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comandas',
+        },
+        () => {
+          // Atualiza dados da conta e fechamento em tempo real
+          fetchDetalhesConta(true)
+        },
+      )
       .subscribe()
 
     // 2. Polling curto de segurança (4s) para garantir sincronia mesmo se realtime oscilar
     const interval = setInterval(() => {
       fetchOrderStatus(true)
+      fetchDetalhesConta(true)
     }, 4000)
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(interval)
     }
-  }, [mesaNum, activeComandaId, fetchOrderStatus])
+  }, [mesaNum, activeComandaId, fetchOrderStatus, fetchDetalhesConta])
+
+  // Ação de solicitar a conta da mesa
+  const handlePedirConta = async (forma: PaymentMethod) => {
+    if (mesaNum <= 0) return
+    setSubmittingConta(true)
+    try {
+      const res = await BarService.solicitarContaMesa(mesaNum, forma)
+      if (res.sucesso) {
+        toast({
+          title: 'Conta solicitada com sucesso!',
+          description: `O Caixa já foi avisado sobre a Mesa ${mesaNum} (${forma}).`,
+        })
+        SoundEffects.playOrderAlert()
+        await fetchDetalhesConta(true)
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Não foi possível solicitar a conta',
+          description: res.mensagem || 'Tente novamente.',
+        })
+      }
+    } catch (err: any) {
+      console.error('Erro ao pedir conta:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao solicitar conta',
+        description: err.message || 'Falha na comunicação com o servidor.',
+      })
+    } finally {
+      setSubmittingConta(false)
+    }
+  }
 
   // Categorias únicas
   const categories = ['Todas', ...Array.from(new Set(products.map((p) => p.category)))]
@@ -661,6 +737,18 @@ export default function PedidoOnline() {
             </Button>
           </div>
         </div>
+
+        {/* FLUXO PEDIR A CONTA (EXCLUSIVO PARA CLIENTES EM MESA) */}
+        {!isDelivery && mesaNum > 0 && (
+          <PainelPedirContaCliente
+            mesaNumero={mesaNum}
+            detalhesConta={detalhesConta}
+            loadingDetalhes={loadingDetalhesConta}
+            submittingConta={submittingConta}
+            onPedirConta={handlePedirConta}
+            onRefresh={() => fetchDetalhesConta(false)}
+          />
+        )}
 
         {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO */}
         {trackedItems.length > 0 && (

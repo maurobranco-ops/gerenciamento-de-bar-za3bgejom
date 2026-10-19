@@ -14,6 +14,8 @@ import {
   KitchenStatus,
   AreaPreparo,
   BarSettings,
+  DetalhesContaMesa,
+  StatusContaCliente,
 } from '../types/bar'
 
 export const DEFAULT_BAR_SETTINGS: BarSettings = {
@@ -344,6 +346,11 @@ export const BarService = {
         closedAt: c?.fechada_em || undefined,
         includeServiceFee: c ? Boolean(c.inclui_taxa_servico) : true,
         capacity: m.capacidade,
+        contaSolicitada: Boolean(c?.conta_solicitada),
+        contaSolicitadaEm: c?.conta_solicitada_em || undefined,
+        formaPagamentoSolicitada: c?.forma_pagamento_solicitada as PaymentMethod | undefined,
+        statusConta: (c?.status_conta as StatusContaCliente) || 'nenhum',
+        motivoRecusaConta: c?.motivo_recusa_conta || undefined,
         items,
       }
     })
@@ -957,6 +964,122 @@ export const BarService = {
 
     if (error) {
       console.error('Erro ao chamar RPC enviar_pedido_online:', error)
+      throw error
+    }
+
+    return data
+  },
+
+  // --- PEDIR A CONTA & FECHAMENTO PELO CAIXA ---
+  async solicitarContaMesa(
+    mesaNumero: number,
+    formaPagamento: PaymentMethod,
+  ): Promise<{
+    sucesso: boolean
+    codigo?: string
+    comanda_id?: string
+    mesa_numero?: number
+    forma_pagamento?: string
+    subtotal?: number
+    taxa_servico?: number
+    total?: number
+    status_conta?: StatusContaCliente
+    mensagem: string
+  }> {
+    const { data, error } = await db.rpc('solicitar_conta_mesa', {
+      p_mesa_numero: mesaNumero,
+      p_forma_pagamento: formaPagamento,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC solicitar_conta_mesa:', error)
+      throw error
+    }
+
+    return data
+  },
+
+  async obterDetalhesContaMesa(mesaNumero: number): Promise<DetalhesContaMesa> {
+    const { data, error } = await db.rpc('obter_detalhes_conta_mesa', {
+      p_mesa_numero: mesaNumero,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC obter_detalhes_conta_mesa:', error)
+      throw error
+    }
+
+    return {
+      encontrada: Boolean(data?.encontrada),
+      comandaId: data?.comanda_id,
+      mesaNumero: data?.mesa_numero,
+      clienteNome: data?.cliente_nome,
+      pessoas: data?.pessoas,
+      statusMesa: data?.status_mesa,
+      contaSolicitada: Boolean(data?.conta_solicitada),
+      contaSolicitadaEm: data?.conta_solicitada_em,
+      formaPagamentoSolicitada: data?.forma_pagamento_solicitada,
+      statusConta: data?.status_conta,
+      motivoRecusaConta: data?.motivo_recusa_conta,
+      subtotal: data?.subtotal !== undefined ? Number(data.subtotal) : undefined,
+      taxaPercentual:
+        data?.taxa_percentual !== undefined ? Number(data.taxa_percentual) : undefined,
+      taxaServico: data?.taxa_servico !== undefined ? Number(data.taxa_servico) : undefined,
+      incluiTaxaServico: Boolean(data?.inclui_taxa_servico),
+      total: data?.total !== undefined ? Number(data.total) : undefined,
+      itens: data?.itens || [],
+    }
+  },
+
+  async caixaAutorizarFecharConta(params: {
+    mesaNumero: number
+    formaPagamento: PaymentMethod
+    valorPago: number
+    marcarEmProcessamentoPix?: boolean
+  }): Promise<{
+    sucesso: boolean
+    comanda_id?: string
+    mesa_numero?: number
+    status_conta?: StatusContaCliente
+    movimento_id?: string
+    fiscal_numero?: string
+    valor_pago?: number
+    forma_pagamento?: string
+    mensagem: string
+  }> {
+    const { data, error } = await db.rpc('caixa_autorizar_fechar_conta', {
+      p_mesa_numero: params.mesaNumero,
+      p_forma_pagamento: params.formaPagamento,
+      p_valor_pago: params.valorPago,
+      p_marcar_em_processamento_pix: Boolean(params.marcarEmProcessamentoPix),
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC caixa_autorizar_fechar_conta:', error)
+      throw error
+    }
+
+    return data
+  },
+
+  async caixaRecusarAdiarConta(
+    mesaNumero: number,
+    motivo: string,
+  ): Promise<{
+    sucesso: boolean
+    mesa_numero: number
+    status_mesa: TableStatus
+    status_conta: StatusContaCliente
+    motivo: string
+    mensagem: string
+  }> {
+    const { data, error } = await db.rpc('caixa_recusar_adiar_conta', {
+      p_mesa_numero: mesaNumero,
+      p_motivo: motivo,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC caixa_recusar_adiar_conta:', error)
       throw error
     }
 
