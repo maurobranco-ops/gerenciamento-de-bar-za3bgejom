@@ -1101,6 +1101,9 @@ export const BarService = {
       incluiTaxaServico: Boolean(data?.inclui_taxa_servico),
       total: data?.total !== undefined ? Number(data.total) : undefined,
       itens: data?.itens || [],
+      pixChave: data?.pix_chave || undefined,
+      pixBeneficiarioNome: data?.pix_beneficiario_nome || undefined,
+      pixCidade: data?.pix_cidade || undefined,
     }
   },
 

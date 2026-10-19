@@ -14,8 +14,11 @@ import {
   ShieldCheck,
   RefreshCw,
   Info,
+  Copy,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -24,6 +27,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { QRCodeSVG } from '@/components/QRCodeSVG'
+import { generatePixBRCode, isPixConfigured } from '@/lib/pix'
+import { useToast } from '@/hooks/use-toast'
 import { DetalhesContaMesa, PaymentMethod, StatusContaCliente } from '@/types/bar'
 
 interface PainelPedirContaClienteProps {
@@ -85,6 +91,8 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   const [modalOpen, setModalOpen] = useState(false)
   const [modalConfirmacaoFinalOpen, setModalConfirmacaoFinalOpen] = useState(false)
   const [formaSelecionada, setFormaSelecionada] = useState<PaymentMethod>('Pix')
+  const [copiedPixCode, setCopiedPixCode] = useState(false)
+  const { toast } = useToast()
 
   const rawStatusConta: StatusContaCliente = detalhesConta?.statusConta || 'nenhum'
   const isMesaOcupada = detalhesConta?.statusMesa === 'Ocupada'
@@ -120,6 +128,35 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
 
   const formaObj = FORMAS_PAGAMENTO.find((f) => f.id === formaSelecionada)
   const FormaIcon = formaObj?.icone || Receipt
+
+  const handleCopyPix = async (payload: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = payload
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      setCopiedPixCode(true)
+      toast({
+        title: 'Código Pix Copiado!',
+        description: 'Cole no aplicativo do seu banco para efetuar o pagamento.',
+      })
+      setTimeout(() => setCopiedPixCode(false), 3000)
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao copiar',
+        description: 'Selecione e copie o código manualmente.',
+      })
+    }
+  }
 
   // Se a comanda estiver fechada (e a mesa NÃO estiver ocupada em novo atendimento)
   if (statusConta === 'fechada') {
@@ -231,8 +268,35 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
     const currentConfig = statusLabels[statusConta] || statusLabels.solicitada
     const CurrentIcon = currentConfig.icon
 
+    // Geração do QR Pix real no estado em_processamento_pix
+    const isProcessandoPix = statusConta === 'em_processamento_pix'
+    const pixValido = isPixConfigured({
+      pixChave: detalhesConta?.pixChave,
+      pixBeneficiarioNome: detalhesConta?.pixBeneficiarioNome,
+      pixCidade: detalhesConta?.pixCidade,
+    })
+
+    let pixPayload = ''
+    let pixError = ''
+    if (isProcessandoPix) {
+      if (pixValido && total > 0) {
+        try {
+          pixPayload = generatePixBRCode({
+            pixKey: detalhesConta!.pixChave!,
+            merchantName: detalhesConta!.pixBeneficiarioNome!,
+            merchantCity: detalhesConta!.pixCidade!,
+            amount: total,
+            txid: `MESA${mesaNumero}`,
+            description: `Mesa ${mesaNumero}`,
+          })
+        } catch (err: any) {
+          pixError = err.message || 'Erro ao gerar QR Code Pix'
+        }
+      }
+    }
+
     return (
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#292524] to-[#1C1917] border border-amber-500/40 shadow-xl space-y-4">
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#292524] to-[#1C1917] border border-amber-500/40 shadow-xl space-y-4 animate-fade-in-up">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30 animate-pulse">
@@ -259,6 +323,124 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
             <RefreshCw className="w-3.5 h-3.5" />
           </Button>
         </div>
+
+        {/* QR Code Pix Real do Banco Central e Copia e Cola para o Cliente */}
+        {isProcessandoPix && (
+          <div className="p-4 rounded-xl bg-[#201D1B] border border-purple-500/40 space-y-3.5 shadow-inner">
+            <div className="flex items-center justify-between border-b border-[#342D26] pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-teal-500/15 text-teal-400">
+                  <QrCode className="w-4 h-4 text-teal-400" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-stone-100 flex items-center gap-1.5">
+                    <span>QR Code Pix do Banco Central</span>
+                    <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[9px] font-semibold">
+                      BR Code Oficial
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-stone-400">
+                    Aponte o app do seu banco ou copie o código abaixo
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] text-stone-400 uppercase tracking-wider block">
+                  Valor Exato
+                </span>
+                <span className="text-base font-black text-amber-400 tabular-nums">
+                  R$ {total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {pixValido && !pixError && pixPayload ? (
+              <>
+                {/* QR Code centralizado */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-[#181614] p-3.5 rounded-xl border border-[#383330]">
+                  <div className="bg-white p-2.5 rounded-xl shadow-lg shrink-0">
+                    <QRCodeSVG value={pixPayload} size={150} margin={1} />
+                  </div>
+
+                  <div className="space-y-1.5 text-xs flex-1 w-full text-center sm:text-left">
+                    <div className="text-[11px] text-stone-400">
+                      Recebedor:{' '}
+                      <span className="font-semibold text-stone-200">
+                        {detalhesConta?.pixBeneficiarioNome || 'Rachide Bar'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-stone-400">
+                      Chave Pix:{' '}
+                      <span className="font-mono text-stone-200">{detalhesConta?.pixChave}</span>
+                    </div>
+                    <div className="text-[11px] text-stone-400">
+                      Cidade:{' '}
+                      <span className="font-medium text-stone-200">
+                        {detalhesConta?.pixCidade || 'SAO PAULO'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-400 font-medium flex items-center justify-center sm:justify-start gap-1 pt-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>QR Code estático oficial com valor exato da comanda</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Copia e Cola */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-stone-200">Pix Copia e Cola</span>
+                    <span className="text-[10px] text-stone-400">
+                      Pague no app do banco no celular
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={pixPayload}
+                      onFocus={(e) => e.target.select()}
+                      className="bg-[#11100f] border-[#44403C] text-stone-200 text-xs font-mono select-all h-9 truncate"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleCopyPix(pixPayload)}
+                      className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs h-9 px-3 shrink-0 flex items-center gap-1.5 shadow-md shadow-amber-950/30"
+                    >
+                      {copiedPixCode ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-stone-950" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar código Pix</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Aviso de conferência manual pelo caixa */}
+                <div className="p-2.5 rounded-lg bg-stone-900/80 border border-stone-800 text-[11px] text-stone-400 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    Após concluir o pagamento, o Caixa confere o recebimento e faz a liberação da
+                    mesa.
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+                {pixError
+                  ? `Não foi possível gerar o QR Pix: ${pixError}`
+                  : 'A chave Pix do bar ainda não foi configurada pelo Gerente. Apresente-se ao caixa para concluir o pagamento.'}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Resumo financeiro da comanda */}
         <div className="p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-2 text-xs">

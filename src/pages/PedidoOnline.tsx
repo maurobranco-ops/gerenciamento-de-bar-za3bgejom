@@ -140,6 +140,11 @@ export default function PedidoOnline() {
   const [loadingDetalhesConta, setLoadingDetalhesConta] = useState(false)
   const [submittingConta, setSubmittingConta] = useState(false)
 
+  const isContaAtiva =
+    detalhesConta?.statusConta === 'solicitada' ||
+    detalhesConta?.statusConta === 'autorizada' ||
+    detalhesConta?.statusConta === 'em_processamento_pix'
+
   const toggleSound = () => {
     setSoundEnabled((prev) => {
       const next = !prev
@@ -823,20 +828,22 @@ export default function PedidoOnline() {
             </div>
           </div>
 
-          {/* Carrinho Trigger */}
-          <Button
-            onClick={() => setCartOpen(true)}
-            size="sm"
-            className="relative bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-9 px-3.5 shadow-md shadow-amber-950/40"
-          >
-            <ShoppingCart className="w-4 h-4 mr-1.5" />
-            <span>Ver Pedido</span>
-            {cartCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-stone-950 text-amber-400 text-[10px] font-extrabold tabular-nums">
-                {cartCount}
-              </span>
-            )}
-          </Button>
+          {/* Carrinho Trigger: Oculto se solicitação de fechamento estiver ativa */}
+          {!isContaAtiva && (
+            <Button
+              onClick={() => setCartOpen(true)}
+              size="sm"
+              className="relative bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-9 px-3.5 shadow-md shadow-amber-950/40"
+            >
+              <ShoppingCart className="w-4 h-4 mr-1.5" />
+              <span>Ver Pedido</span>
+              {cartCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-stone-950 text-amber-400 text-[10px] font-extrabold tabular-nums">
+                  {cartCount}
+                </span>
+              )}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -892,8 +899,8 @@ export default function PedidoOnline() {
           />
         )}
 
-        {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO */}
-        {trackedItems.length > 0 && (
+        {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO (Oculto se solicitação de fechamento estiver ativa) */}
+        {trackedItems.length > 0 && !isContaAtiva && (
           <StatusAcompanhamentoPedido
             items={trackedItems}
             mesaNumero={mesaNum}
@@ -911,126 +918,131 @@ export default function PedidoOnline() {
           />
         )}
 
-        {/* Busca e Categorias */}
-        <div id="secao-cardapio" className="space-y-3 pt-1">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar no cardápio: Heineken, bolinho, picanha, drinks..."
-              className="pl-9 bg-[#292524] border-[#44403C] text-stone-100 text-xs sm:text-sm focus:border-amber-500 h-10"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-3 text-stone-400 hover:text-stone-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+        {/* CARDÁPIO & PRODUTOS: Exibidos apenas quando não há solicitação de fechamento ativa */}
+        {!isContaAtiva && (
+          <>
+            {/* Busca e Categorias */}
+            <div id="secao-cardapio" className="space-y-3 pt-1">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar no cardápio: Heineken, bolinho, picanha, drinks..."
+                  className="pl-9 bg-[#292524] border-[#44403C] text-stone-100 text-xs sm:text-sm focus:border-amber-500 h-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-200"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
-          {/* Categorias Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                  selectedCategory === cat
-                    ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/30'
-                    : 'bg-[#292524] text-stone-300 hover:bg-[#44403C] border border-[#44403C]'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
+              {/* Categorias Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      selectedCategory === cat
+                        ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/30'
+                        : 'bg-[#292524] text-stone-300 hover:bg-[#44403C] border border-[#44403C]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Lista de Produtos */}
-        {loading ? (
-          <div className="py-16 text-center space-y-2">
-            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
-            <p className="text-xs text-stone-400">Carregando cardápio fresco...</p>
-          </div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="py-16 text-center text-stone-400 text-sm border border-dashed border-[#44403C] rounded-2xl">
-            Nenhum item encontrado no momento.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {filteredProducts.map((prod) => (
-              <div
-                key={prod.id}
-                onClick={() => handleOpenItem(prod)}
-                className="rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group overflow-hidden"
-              >
-                {/* Imagem do Produto ou Placeholder Elegante */}
-                <div className="w-full h-36 relative bg-stone-900 overflow-hidden">
-                  {prod.imageUrl ? (
-                    <img
-                      src={prod.imageUrl}
-                      alt={prod.name}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    renderCategoryPlaceholder(prod.category)
-                  )}
+            {/* Lista de Produtos */}
+            {loading ? (
+              <div className="py-16 text-center space-y-2">
+                <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
+                <p className="text-xs text-stone-400">Carregando cardápio fresco...</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="py-16 text-center text-stone-400 text-sm border border-dashed border-[#44403C] rounded-2xl">
+                Nenhum item encontrado no momento.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {filteredProducts.map((prod) => (
+                  <div
+                    key={prod.id}
+                    onClick={() => handleOpenItem(prod)}
+                    className="rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group overflow-hidden"
+                  >
+                    {/* Imagem do Produto ou Placeholder Elegante */}
+                    <div className="w-full h-36 relative bg-stone-900 overflow-hidden">
+                      {prod.imageUrl ? (
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        renderCategoryPlaceholder(prod.category)
+                      )}
 
-                  {/* Categoria Badge sobre a foto */}
-                  <div className="absolute top-2.5 right-2.5">
-                    <Badge
-                      variant="outline"
-                      className="bg-[#1C1917]/85 backdrop-blur-sm text-stone-200 border-[#44403C] text-[10px] font-bold shadow-sm"
-                    >
-                      {prod.category}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Conteúdo do Card */}
-                <div className="p-4 flex flex-col flex-1 justify-between">
-                  <div>
-                    <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors leading-snug">
-                      {prod.name}
-                    </h3>
-                    {prod.description && (
-                      <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                        {prod.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#44403C]/50">
-                    <div>
-                      <span className="text-[10px] text-stone-400 uppercase font-semibold block">
-                        Preço
-                      </span>
-                      <div className="text-amber-400 font-extrabold text-base tabular-nums">
-                        R$ {prod.price.toFixed(2)}
+                      {/* Categoria Badge sobre a foto */}
+                      <div className="absolute top-2.5 right-2.5">
+                        <Badge
+                          variant="outline"
+                          className="bg-[#1C1917]/85 backdrop-blur-sm text-stone-200 border-[#44403C] text-[10px] font-bold shadow-sm"
+                        >
+                          {prod.category}
+                        </Badge>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Pedir
-                    </Button>
+
+                    {/* Conteúdo do Card */}
+                    <div className="p-4 flex flex-col flex-1 justify-between">
+                      <div>
+                        <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors leading-snug">
+                          {prod.name}
+                        </h3>
+                        {prod.description && (
+                          <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
+                            {prod.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#44403C]/50">
+                        <div>
+                          <span className="text-[10px] text-stone-400 uppercase font-semibold block">
+                            Preço
+                          </span>
+                          <div className="text-amber-400 font-extrabold text-base tabular-nums">
+                            R$ {prod.price.toFixed(2)}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" />
+                          Pedir
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* Floating Bottom Bar if Cart has items (com margem de segurança para o Skip badge no canto inferior direito) */}
-      {cartCount > 0 && !cartOpen && (
+      {/* Floating Bottom Bar if Cart has items (com margem de segurança para o Skip badge no canto inferior direito; Oculto se solicitação ativa) */}
+      {!isContaAtiva && cartCount > 0 && !cartOpen && (
         <div className="sticky bottom-4 sm:bottom-3 px-3 sm:px-4 max-w-4xl mx-auto w-full z-20 mb-8 sm:mb-2">
           <button
             onClick={() => setCartOpen(true)}

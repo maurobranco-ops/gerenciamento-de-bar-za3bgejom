@@ -118,6 +118,9 @@ export interface DetalhesContaMesa {
     observacoes?: string
     origem_online?: boolean
   }>
+  pixChave?: string
+  pixBeneficiarioNome?: string
+  pixCidade?: string
 }
 
 export type PaymentMethod = 'Dinheiro' | 'Cartão Débito' | 'Cartão Crédito' | 'Pix' | 'TEP'
