@@ -91,6 +91,8 @@ export interface Comanda {
   formaPagamentoSolicitada?: PaymentMethod
   statusConta?: StatusContaCliente
   motivoRecusaConta?: string
+  nfceSolicitada?: boolean
+  nfceDocumentoId?: string
 }
 
 export interface DetalhesContaMesa {
@@ -105,6 +107,9 @@ export interface DetalhesContaMesa {
   formaPagamentoSolicitada?: PaymentMethod
   statusConta?: StatusContaCliente
   motivoRecusaConta?: string
+  nfceSolicitada?: boolean
+  nfceDocumento?: FiscalDocument | null
+  fechadaEm?: string
   subtotal?: number
   taxaPercentual?: number
   taxaServico?: number
@@ -118,6 +123,15 @@ export interface DetalhesContaMesa {
     observacoes?: string
     origem_online?: boolean
   }>
+  barInfo?: {
+    razaoSocial?: string
+    nomeFantasia?: string
+    cnpj?: string
+    inscricaoEstadual?: string
+    enderecoCompleto?: string
+    telefone?: string
+    impressoraFiscalNome?: string
+  }
   pixChave?: string
   pixBeneficiarioNome?: string
   pixCidade?: string

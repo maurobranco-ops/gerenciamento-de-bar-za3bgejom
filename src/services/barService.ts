@@ -1037,21 +1037,24 @@ export const BarService = {
   async solicitarContaMesa(
     mesaNumero: number,
     formaPagamento: PaymentMethod,
+    desejaNfce: boolean = false,
   ): Promise<{
     sucesso: boolean
     codigo?: string
     comanda_id?: string
     mesa_numero?: number
     forma_pagamento?: string
+    nfce_solicitada?: boolean
     subtotal?: number
     taxa_servico?: number
     total?: number
     status_conta?: StatusContaCliente
     mensagem: string
   }> {
-    const { data, error } = await db.rpc('solicitar_conta_mesa', {
+    const { data, error } = await (db.rpc as any)('solicitar_conta_mesa', {
       p_mesa_numero: mesaNumero,
       p_forma_pagamento: formaPagamento,
+      p_deseja_nfce: desejaNfce,
     })
 
     if (error) {
@@ -1063,7 +1066,7 @@ export const BarService = {
   },
 
   async obterDetalhesContaMesa(mesaNumero: number): Promise<DetalhesContaMesa> {
-    const { data, error } = await db.rpc('obter_detalhes_conta_mesa', {
+    const { data, error } = await (db.rpc as any)('obter_detalhes_conta_mesa', {
       p_mesa_numero: mesaNumero,
     })
 
@@ -1072,13 +1075,29 @@ export const BarService = {
       throw error
     }
 
-    // Salvaguarda estrita no cliente: se statusMesa for Livre OU (Ocupada e statusConta fechada), sanitizar para nenhum
     const rawStatus = (data?.status_conta as StatusContaCliente) || 'nenhum'
     const statusMesa = data?.status_mesa
-    const isLivre = statusMesa === 'Livre'
     const isOcupada = statusMesa === 'Ocupada'
+    // Se a mesa estiver sendo reaberta / Ocupada com resíduo anterior 'fechada', sanitiza
     const statusContaSanitizado: StatusContaCliente =
-      isLivre || (isOcupada && rawStatus === 'fechada') ? 'nenhum' : rawStatus
+      isOcupada && rawStatus === 'fechada' ? 'nenhum' : rawStatus
+
+    let nfceDoc: FiscalDocument | null = null
+    if (data?.nfce_documento) {
+      const doc = data.nfce_documento
+      nfceDoc = {
+        id: doc.id,
+        number: doc.numero,
+        serie: doc.serie || '001',
+        type: doc.tipo || 'NFC-e',
+        issuedAt: doc.emitido_em,
+        value: Number(doc.valor || 0),
+        status: doc.status || 'Autorizada',
+        clientName: doc.nome_cliente || undefined,
+        docNumber: doc.documento_cliente || undefined,
+        accessKey: doc.chave_acesso || undefined,
+      }
+    }
 
     return {
       encontrada: Boolean(data?.encontrada),
@@ -1087,11 +1106,13 @@ export const BarService = {
       clienteNome: data?.cliente_nome,
       pessoas: data?.pessoas,
       statusMesa: data?.status_mesa,
-      contaSolicitada: statusContaSanitizado === 'nenhum' ? false : Boolean(data?.conta_solicitada),
-      contaSolicitadaEm: statusContaSanitizado === 'nenhum' ? undefined : data?.conta_solicitada_em,
-      formaPagamentoSolicitada:
-        statusContaSanitizado === 'nenhum' ? undefined : data?.forma_pagamento_solicitada,
+      contaSolicitada: Boolean(data?.conta_solicitada),
+      contaSolicitadaEm: data?.conta_solicitada_em || undefined,
+      formaPagamentoSolicitada: data?.forma_pagamento_solicitada || undefined,
       statusConta: statusContaSanitizado,
+      nfceSolicitada: Boolean(data?.nfce_solicitada),
+      nfceDocumento: nfceDoc,
+      fechadaEm: data?.fechada_em || undefined,
       motivoRecusaConta:
         statusContaSanitizado === 'recusada' ? data?.motivo_recusa_conta : undefined,
       subtotal: data?.subtotal !== undefined ? Number(data.subtotal) : undefined,
@@ -1101,9 +1122,58 @@ export const BarService = {
       incluiTaxaServico: Boolean(data?.inclui_taxa_servico),
       total: data?.total !== undefined ? Number(data.total) : undefined,
       itens: data?.itens || [],
+      barInfo: data?.bar_info
+        ? {
+            razaoSocial: data.bar_info.razao_social,
+            nomeFantasia: data.bar_info.nome_fantasia,
+            cnpj: data.bar_info.cnpj,
+            inscricaoEstadual: data.bar_info.inscricao_estadual,
+            enderecoCompleto: data.bar_info.endereco_completo,
+            telefone: data.bar_info.telefone,
+            impressoraFiscalNome: data.bar_info.impressora_fiscal_nome,
+          }
+        : undefined,
       pixChave: data?.pix_chave || undefined,
       pixBeneficiarioNome: data?.pix_beneficiario_nome || undefined,
       pixCidade: data?.pix_cidade || undefined,
+    }
+  },
+
+  async obterNfceComandaMesa(mesaNumero: number): Promise<{
+    sucesso: boolean
+    documento?: FiscalDocument
+    barInfo?: any
+    mensagem?: string
+  }> {
+    const { data, error } = await (db.rpc as any)('obter_nfce_comanda_mesa', {
+      p_mesa_numero: mesaNumero,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC obter_nfce_comanda_mesa:', error)
+      throw error
+    }
+
+    if (!data?.sucesso || !data?.documento) {
+      return { sucesso: false, mensagem: data?.mensagem || 'Documento não encontrado.' }
+    }
+
+    const doc = data.documento
+    return {
+      sucesso: true,
+      documento: {
+        id: doc.id,
+        number: doc.numero,
+        serie: doc.serie || '001',
+        type: doc.tipo || 'NFC-e',
+        issuedAt: doc.emitido_em,
+        value: Number(doc.valor || 0),
+        status: doc.status || 'Autorizada',
+        clientName: doc.nome_cliente || undefined,
+        docNumber: doc.documento_cliente || undefined,
+        accessKey: doc.chave_acesso || undefined,
+      },
+      barInfo: data.bar_info,
     }
   },
 

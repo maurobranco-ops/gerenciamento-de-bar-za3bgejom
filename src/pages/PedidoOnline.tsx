@@ -36,6 +36,7 @@ import { QRCodeSVG } from '@/components/QRCodeSVG'
 import { MesaSelector } from '@/components/MesaSelector'
 import { PainelPedirContaCliente } from '@/components/PainelPedirContaCliente'
 import { TotalizacaoConsumoMesa } from '@/components/TotalizacaoConsumoMesa'
+import { TelaAgradecimentoMesaFechada } from '@/components/TelaAgradecimentoMesaFechada'
 import { useToast } from '@/hooks/use-toast'
 import {
   StatusAcompanhamentoPedido,
@@ -141,10 +142,17 @@ export default function PedidoOnline() {
   const [loadingDetalhesConta, setLoadingDetalhesConta] = useState(false)
   const [submittingConta, setSubmittingConta] = useState(false)
 
+  // Estado de fechamento final da comanda
+  const isMesaFechada =
+    !isDelivery &&
+    mesaNum > 0 &&
+    (detalhesConta?.statusConta === 'fechada' || detalhesConta?.statusMesa === 'Fechada')
+
   const isContaAtiva =
-    detalhesConta?.statusConta === 'solicitada' ||
-    detalhesConta?.statusConta === 'autorizada' ||
-    detalhesConta?.statusConta === 'em_processamento_pix'
+    !isMesaFechada &&
+    (detalhesConta?.statusConta === 'solicitada' ||
+      detalhesConta?.statusConta === 'autorizada' ||
+      detalhesConta?.statusConta === 'em_processamento_pix')
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
@@ -516,16 +524,18 @@ export default function PedidoOnline() {
     }
   }, [mesaNum, activeComandaId, fetchOrderStatus, fetchDetalhesConta])
 
-  // Ação de solicitar a conta da mesa
-  const handlePedirConta = async (forma: PaymentMethod) => {
+  // Ação de solicitar a conta da mesa com opção de NFC-e
+  const handlePedirConta = async (forma: PaymentMethod, desejaNfce: boolean) => {
     if (mesaNum <= 0) return
     setSubmittingConta(true)
     try {
-      const res = await BarService.solicitarContaMesa(mesaNum, forma)
+      const res = await BarService.solicitarContaMesa(mesaNum, forma, desejaNfce)
       if (res.sucesso) {
         toast({
           title: 'Conta solicitada com sucesso!',
-          description: `O Caixa já foi avisado sobre a Mesa ${mesaNum} (${forma}).`,
+          description: `O Caixa já foi avisado sobre a Mesa ${mesaNum} (${forma})${
+            desejaNfce ? ' • NFC-e solicitada' : ''
+          }.`,
         })
         SoundEffects.playOrderAlert()
         await fetchDetalhesConta(true)
@@ -546,6 +556,28 @@ export default function PedidoOnline() {
     } finally {
       setSubmittingConta(false)
     }
+  }
+
+  // Novo atendimento pós-fechamento (limpa comanda antiga do storage e abre seletor)
+  const handleIniciarNovoAtendimentoPosFechamento = () => {
+    AtendimentoStorage.clear()
+    try {
+      localStorage.removeItem(`rachide_cart_mesa_${mesaNum}`)
+      localStorage.removeItem(`rachide_active_cmd_mesa_${mesaNum}`)
+    } catch {
+      /* ignore */
+    }
+    setCart([])
+    setDetalhesConta(null)
+    setTrackedItems([])
+    setActiveComandaId('')
+    setAtendimentoAtivo(null)
+    setMesaNum(0)
+    navigate('/pedido', { replace: true })
+    toast({
+      title: 'Atendimento anterior finalizado',
+      description: 'Escolha uma nova mesa desocupada para iniciar um novo atendimento.',
+    })
   }
 
   // Categorias únicas
@@ -845,8 +877,8 @@ export default function PedidoOnline() {
             </div>
           </div>
 
-          {/* Carrinho Trigger: Oculto se solicitação de fechamento estiver ativa */}
-          {!isContaAtiva && (
+          {/* Carrinho Trigger: Oculto se a conta foi fechada OU se solicitação estiver ativa */}
+          {!isMesaFechada && !isContaAtiva && (
             <Button
               onClick={() => setCartOpen(true)}
               size="sm"
@@ -866,224 +898,241 @@ export default function PedidoOnline() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-5 space-y-5">
-        {/* Banner de Boas-Vindas */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-[#292524] to-[#342D26] border border-amber-500/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <h2 className="font-extrabold text-sm sm:text-base text-stone-100">
-                {isDelivery
-                  ? 'Faça seu pedido para entrega ou retirada'
-                  : `Você está na Mesa ${mesaNum}`}
-              </h2>
-            </div>
-            <p className="text-xs text-stone-300 mt-1">
-              Peça direto do seu celular: seu pedido vai em tempo real para a cozinha e bar do
-              Rachide Bar.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Mesa Conectada
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                // Intercepta a saída da mesa com confirmação acolhedora
-                setModalConfirmarSaidaOpen(true)
-              }}
-              className="bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-[11px] h-7 px-2"
-            >
-              <ArrowLeft className="w-3 h-3 mr-1" />
-              Trocar mesa
-            </Button>
-          </div>
-        </div>
-
-        {/* FLUXO PEDIR A CONTA (EXCLUSIVO PARA CLIENTES EM MESA) */}
-        {!isDelivery && mesaNum > 0 && (
-          <PainelPedirContaCliente
+        {/* CORREÇÃO OBRIGATÓRIA (Ponto 3): Se a mesa/comanda estiver FECHADA, ocultar COMPLETAMENTE:
+            (a) status da mesa / banner de status de mesa,
+            (b) card "Encerrar Atendimento",
+            (c) totalização do consumo (TotalizacaoConsumoMesa),
+            (d) opções de pedidos (cardápio, busca, categorias, carrinho flutuante e botão do carrinho).
+            Renderizar SOMENTE a tela de agradecimento + botão de download da NFC-e (quando solicitada). */}
+        {isMesaFechada ? (
+          <TelaAgradecimentoMesaFechada
             mesaNumero={mesaNum}
+            clienteNome={atendimentoAtivo?.clienteNome || detalhesConta?.clienteNome}
             detalhesConta={detalhesConta}
-            loadingDetalhes={loadingDetalhesConta}
-            submittingConta={submittingConta}
-            onPedirConta={handlePedirConta}
-            onRefresh={() => fetchDetalhesConta(false)}
+            onNovoAtendimento={handleIniciarNovoAtendimentoPosFechamento}
           />
-        )}
-
-        {/* TOTALIZAÇÃO PARCIAL DO CONSUMO DA MESA (Visível enquanto o atendimento está aberto, antes de pedir a conta) */}
-        {!isDelivery && mesaNum > 0 && !isContaAtiva && (
-          <TotalizacaoConsumoMesa
-            mesaNumero={mesaNum}
-            detalhesConta={detalhesConta}
-            loading={loadingDetalhesConta}
-          />
-        )}
-
-        {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO (Oculto se solicitação de fechamento estiver ativa) */}
-        {trackedItems.length > 0 && !isContaAtiva && (
-          <StatusAcompanhamentoPedido
-            items={trackedItems}
-            mesaNumero={mesaNum}
-            comandaId={activeComandaId}
-            loading={trackingLoading}
-            onRefresh={() => fetchOrderStatus(false)}
-            soundEnabled={soundEnabled}
-            onToggleSound={toggleSound}
-            onAddMoreItems={() => {
-              const menuSection = document.getElementById('secao-cardapio')
-              if (menuSection) {
-                menuSection.scrollIntoView({ behavior: 'smooth' })
-              }
-            }}
-          />
-        )}
-
-        {/* CARDÁPIO & PRODUTOS: Exibidos apenas quando não há solicitação de fechamento ativa */}
-        {!isContaAtiva && (
+        ) : (
           <>
-            {/* Busca e Categorias */}
-            <div id="secao-cardapio" className="space-y-3 pt-1">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar no cardápio: Heineken, bolinho, picanha, drinks..."
-                  className="pl-9 bg-[#292524] border-[#44403C] text-stone-100 text-xs sm:text-sm focus:border-amber-500 h-10"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-3 text-stone-400 hover:text-stone-200"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+            {/* Banner de Boas-Vindas */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#292524] to-[#342D26] border border-amber-500/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <h2 className="font-extrabold text-sm sm:text-base text-stone-100">
+                    {isDelivery
+                      ? 'Faça seu pedido para entrega ou retirada'
+                      : `Você está na Mesa ${mesaNum}`}
+                  </h2>
+                </div>
+                <p className="text-xs text-stone-300 mt-1">
+                  Peça direto do seu celular: seu pedido vai em tempo real para a cozinha e bar do
+                  Rachide Bar.
+                </p>
               </div>
 
-              {/* Categorias em Grade Responsiva (sem rolagem horizontal) */}
-              <div
-                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2"
-                role="tablist"
-                aria-label="Categorias do cardápio"
-              >
-                {categories.map((cat) => {
-                  const isSelected = selectedCategory === cat
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      role="tab"
-                      aria-selected={isSelected}
-                      onClick={() => {
-                        setSelectedCategory(cat)
-                        const menuSection = document.getElementById('secao-cardapio')
-                        if (menuSection) {
-                          menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        }
-                      }}
-                      className={`px-2 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 border ${
-                        isSelected
-                          ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50'
-                          : 'bg-[#292524] text-stone-300 hover:bg-[#342D26] hover:text-stone-100 border-[#44403C]'
-                      }`}
-                    >
-                      <span className="truncate w-full">{cat}</span>
-                    </button>
-                  )
-                })}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Mesa Conectada
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Intercepta a saída da mesa com confirmação acolhedora
+                    setModalConfirmarSaidaOpen(true)
+                  }}
+                  className="bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-[11px] h-7 px-2"
+                >
+                  <ArrowLeft className="w-3 h-3 mr-1" />
+                  Trocar mesa
+                </Button>
               </div>
             </div>
 
-            {/* Lista de Produtos */}
-            {loading ? (
-              <div className="py-16 text-center space-y-2">
-                <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
-                <p className="text-xs text-stone-400">Carregando cardápio fresco...</p>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="py-16 text-center text-stone-400 text-sm border border-dashed border-[#44403C] rounded-2xl">
-                Nenhum item encontrado no momento.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {filteredProducts.map((prod) => (
+            {/* FLUXO PEDIR A CONTA (EXCLUSIVO PARA CLIENTES EM MESA) */}
+            {!isDelivery && mesaNum > 0 && (
+              <PainelPedirContaCliente
+                mesaNumero={mesaNum}
+                detalhesConta={detalhesConta}
+                loadingDetalhes={loadingDetalhesConta}
+                submittingConta={submittingConta}
+                onPedirConta={handlePedirConta}
+                onRefresh={() => fetchDetalhesConta(false)}
+              />
+            )}
+
+            {/* TOTALIZAÇÃO PARCIAL DO CONSUMO DA MESA (Visível enquanto o atendimento está aberto, antes de pedir a conta) */}
+            {!isDelivery && mesaNum > 0 && !isContaAtiva && (
+              <TotalizacaoConsumoMesa
+                mesaNumero={mesaNum}
+                detalhesConta={detalhesConta}
+                loading={loadingDetalhesConta}
+              />
+            )}
+
+            {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO (Oculto se solicitação de fechamento estiver ativa) */}
+            {trackedItems.length > 0 && !isContaAtiva && (
+              <StatusAcompanhamentoPedido
+                items={trackedItems}
+                mesaNumero={mesaNum}
+                comandaId={activeComandaId}
+                loading={trackingLoading}
+                onRefresh={() => fetchOrderStatus(false)}
+                soundEnabled={soundEnabled}
+                onToggleSound={toggleSound}
+                onAddMoreItems={() => {
+                  const menuSection = document.getElementById('secao-cardapio')
+                  if (menuSection) {
+                    menuSection.scrollIntoView({ behavior: 'smooth' })
+                  }
+                }}
+              />
+            )}
+
+            {/* CARDÁPIO & PRODUTOS: Exibidos apenas quando não há solicitação de fechamento ativa */}
+            {!isContaAtiva && (
+              <>
+                {/* Busca e Categorias */}
+                <div id="secao-cardapio" className="space-y-3 pt-1">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Buscar no cardápio: Heineken, bolinho, picanha, drinks..."
+                      className="pl-9 bg-[#292524] border-[#44403C] text-stone-100 text-xs sm:text-sm focus:border-amber-500 h-10"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-3 text-stone-400 hover:text-stone-200"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Categorias em Grade Responsiva (sem rolagem horizontal) */}
                   <div
-                    key={prod.id}
-                    onClick={() => handleOpenItem(prod)}
-                    className="rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group overflow-hidden"
+                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2"
+                    role="tablist"
+                    aria-label="Categorias do cardápio"
                   >
-                    {/* Imagem do Produto ou Placeholder Elegante */}
-                    <div className="w-full h-36 relative bg-stone-900 overflow-hidden">
-                      {prod.imageUrl ? (
-                        <img
-                          src={prod.imageUrl}
-                          alt={prod.name}
-                          loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        renderCategoryPlaceholder(prod.category)
-                      )}
-
-                      {/* Categoria Badge sobre a foto */}
-                      <div className="absolute top-2.5 right-2.5">
-                        <Badge
-                          variant="outline"
-                          className="bg-[#1C1917]/85 backdrop-blur-sm text-stone-200 border-[#44403C] text-[10px] font-bold shadow-sm"
+                    {categories.map((cat) => {
+                      const isSelected = selectedCategory === cat
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          role="tab"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            setSelectedCategory(cat)
+                            const menuSection = document.getElementById('secao-cardapio')
+                            if (menuSection) {
+                              menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            }
+                          }}
+                          className={`px-2 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 border ${
+                            isSelected
+                              ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50'
+                              : 'bg-[#292524] text-stone-300 hover:bg-[#342D26] hover:text-stone-100 border-[#44403C]'
+                          }`}
                         >
-                          {prod.category}
-                        </Badge>
-                      </div>
-                    </div>
+                          <span className="truncate w-full">{cat}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
 
-                    {/* Conteúdo do Card */}
-                    <div className="p-4 flex flex-col flex-1 justify-between">
-                      <div>
-                        <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors leading-snug">
-                          {prod.name}
-                        </h3>
-                        {prod.description && (
-                          <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                            {prod.description}
-                          </p>
-                        )}
-                      </div>
+                {/* Lista de Produtos */}
+                {loading ? (
+                  <div className="py-16 text-center space-y-2">
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
+                    <p className="text-xs text-stone-400">Carregando cardápio fresco...</p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="py-16 text-center text-stone-400 text-sm border border-dashed border-[#44403C] rounded-2xl">
+                    Nenhum item encontrado no momento.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {filteredProducts.map((prod) => (
+                      <div
+                        key={prod.id}
+                        onClick={() => handleOpenItem(prod)}
+                        className="rounded-2xl bg-[#292524] border border-[#44403C] hover:border-amber-500/60 transition-all cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md group overflow-hidden"
+                      >
+                        {/* Imagem do Produto ou Placeholder Elegante */}
+                        <div className="w-full h-36 relative bg-stone-900 overflow-hidden">
+                          {prod.imageUrl ? (
+                            <img
+                              src={prod.imageUrl}
+                              alt={prod.name}
+                              loading="lazy"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            renderCategoryPlaceholder(prod.category)
+                          )}
 
-                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#44403C]/50">
-                        <div>
-                          <span className="text-[10px] text-stone-400 uppercase font-semibold block">
-                            Preço
-                          </span>
-                          <div className="text-amber-400 font-extrabold text-base tabular-nums">
-                            R$ {prod.price.toFixed(2)}
+                          {/* Categoria Badge sobre a foto */}
+                          <div className="absolute top-2.5 right-2.5">
+                            <Badge
+                              variant="outline"
+                              className="bg-[#1C1917]/85 backdrop-blur-sm text-stone-200 border-[#44403C] text-[10px] font-bold shadow-sm"
+                            >
+                              {prod.category}
+                            </Badge>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
-                        >
-                          <Plus className="w-3.5 h-3.5 mr-1" />
-                          Pedir
-                        </Button>
+
+                        {/* Conteúdo do Card */}
+                        <div className="p-4 flex flex-col flex-1 justify-between">
+                          <div>
+                            <h3 className="font-bold text-sm text-stone-100 group-hover:text-amber-400 transition-colors leading-snug">
+                              {prod.name}
+                            </h3>
+                            {prod.description && (
+                              <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
+                                {prod.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#44403C]/50">
+                            <div>
+                              <span className="text-[10px] text-stone-400 uppercase font-semibold block">
+                                Preço
+                              </span>
+                              <div className="text-amber-400 font-extrabold text-base tabular-nums">
+                                R$ {prod.price.toFixed(2)}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="bg-amber-500/20 group-hover:bg-amber-500 text-amber-400 group-hover:text-stone-950 font-bold text-xs h-8 px-3 rounded-lg transition-all"
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" />
+                              Pedir
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
       </main>
 
-      {/* Floating Bottom Bar if Cart has items (com margem de segurança para o Skip badge no canto inferior direito; Oculto se solicitação ativa) */}
-      {!isContaAtiva && cartCount > 0 && !cartOpen && (
+      {/* Floating Bottom Bar if Cart has items (com margem de segurança para o Skip badge no canto inferior direito; Oculto se comanda fechada OU solicitação ativa) */}
+      {!isMesaFechada && !isContaAtiva && cartCount > 0 && !cartOpen && (
         <div className="sticky bottom-4 sm:bottom-3 px-3 sm:px-4 max-w-4xl mx-auto w-full z-20 mb-8 sm:mb-2">
           <button
             onClick={() => setCartOpen(true)}

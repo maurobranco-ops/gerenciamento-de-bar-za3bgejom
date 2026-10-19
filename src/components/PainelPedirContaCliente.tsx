@@ -37,7 +37,7 @@ interface PainelPedirContaClienteProps {
   detalhesConta: DetalhesContaMesa | null
   loadingDetalhes: boolean
   submittingConta: boolean
-  onPedirConta: (forma: PaymentMethod) => Promise<void>
+  onPedirConta: (forma: PaymentMethod, desejaNfce: boolean) => Promise<void>
   onRefresh: () => void
 }
 
@@ -91,6 +91,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   const [modalOpen, setModalOpen] = useState(false)
   const [modalConfirmacaoFinalOpen, setModalConfirmacaoFinalOpen] = useState(false)
   const [formaSelecionada, setFormaSelecionada] = useState<PaymentMethod>('Pix')
+  const [desejaNfce, setDesejaNfce] = useState(false)
   const [copiedPixCode, setCopiedPixCode] = useState(false)
   const { toast } = useToast()
 
@@ -119,7 +120,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   // Passo 2: O cliente confirma no modal de salvaguarda anti-toque acidental
   const handleConfirmarPedidoContaDefinitivo = async () => {
     try {
-      await onPedirConta(formaSelecionada)
+      await onPedirConta(formaSelecionada, desejaNfce)
       setModalConfirmacaoFinalOpen(false)
     } catch {
       // Se falhar, mantém aberto para tentar novamente
@@ -158,29 +159,9 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
     }
   }
 
-  // Se a comanda estiver fechada (e a mesa NÃO estiver ocupada em novo atendimento)
+  // Se a comanda estiver fechada, a renderização completa é delegada à tela de agradecimento exclusiva
   if (statusConta === 'fechada') {
-    return (
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#1C1917] border border-emerald-500/40 shadow-xl space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black text-emerald-300">Mesa {mesaNumero} Fechada!</h3>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] font-bold">
-                Concluído
-              </Badge>
-            </div>
-            <p className="text-xs text-stone-300 mt-1">
-              O pagamento foi confirmado e a conta encerrada pelo Caixa. Agradecemos a visita ao
-              Rachide Bar! Volte sempre.
-            </p>
-          </div>
-        </div>
-      </div>
-    )
+    return null
   }
 
   // Se a solicitação foi recusada/adiada pelo caixa
@@ -706,6 +687,31 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
                 <span className="text-stone-100">Total Final da Conta:</span>
                 <span className="text-xl text-amber-400 tabular-nums">R$ {total.toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* Caixa de Seleção NFC-e (Item 1 do Requisito) */}
+            <div className="p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] hover:border-amber-500/50 transition-colors">
+              <label
+                htmlFor="checkbox-deseja-nfce"
+                className="flex items-start gap-3 cursor-pointer select-none"
+              >
+                <input
+                  id="checkbox-deseja-nfce"
+                  type="checkbox"
+                  checked={desejaNfce}
+                  onChange={(e) => setDesejaNfce(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-[#44403C] bg-stone-900 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+                />
+                <div className="flex-1 text-xs">
+                  <span className="font-bold text-stone-100 block">
+                    Desejo receber a nota fiscal (NFC-e) do consumo
+                  </span>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    Após o fechamento pelo Caixa, você poderá visualizar e baixar o documento fiscal
+                    diretamente nesta tela.
+                  </p>
+                </div>
+              </label>
             </div>
 
             <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-200 leading-relaxed flex items-start gap-2">
