@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Beer,
   ShoppingCart,
@@ -22,9 +22,10 @@ import {
   Flame,
   ChefHat,
   Utensils,
+  ArrowLeft,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { MenuItem, ProductCategory } from '@/types/bar'
+import { MenuItem, ProductCategory, TableRecord } from '@/types/bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { QRCodeSVG } from '@/components/QRCodeSVG'
+import { MesaSelector } from '@/components/MesaSelector'
 import { useToast } from '@/hooks/use-toast'
 import {
   StatusAcompanhamentoPedido,
@@ -48,12 +50,30 @@ interface CartItem {
 export default function PedidoOnline() {
   const { mesaNumero } = useParams<{ mesaNumero?: string }>()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+
   const mesaParam = mesaNumero
     ? parseInt(mesaNumero, 10)
     : parseInt(searchParams.get('mesa') || '0', 10)
 
   const [mesaNum, setMesaNum] = useState<number>(!isNaN(mesaParam) ? mesaParam : 0)
+
+  // Sincroniza mesaNum caso a URL mude (ex: navegação externa ou popstate)
+  useEffect(() => {
+    const parsed = mesaNumero
+      ? parseInt(mesaNumero, 10)
+      : parseInt(searchParams.get('mesa') || '0', 10)
+    if (!isNaN(parsed)) {
+      setMesaNum(parsed)
+    }
+  }, [mesaNumero, searchParams])
+
   const isDelivery = mesaNum === 0
+
+  // Estado das mesas cadastradas no bar para seleção e validação em tempo real
+  const [mesasBanco, setMesasBanco] = useState<TableRecord[]>([])
+  const [loadingMesas, setLoadingMesas] = useState(true)
+  const [mesaBlockedError, setMesaBlockedError] = useState<string | null>(null)
 
   const { toast } = useToast()
 
@@ -178,6 +198,77 @@ export default function PedidoOnline() {
         )
     }
   }
+
+  // Carrega lista de mesas do banco para validação de status em tempo real
+  const fetchMesas = React.useCallback(async () => {
+    try {
+      setLoadingMesas(true)
+      const { data, error } = await supabase
+        .from('mesas')
+        .select('*')
+        .order('numero', { ascending: true })
+
+      if (!error && data) {
+        const mappedMesas: TableRecord[] = data.map((m: any) => ({
+          id: m.id,
+          numero: m.numero,
+          status: m.status,
+          capacidade: m.capacidade,
+          createdAt: m.created_at,
+          updatedAt: m.updated_at,
+        }))
+        setMesasBanco(mappedMesas)
+
+        // Se uma mesa veio na URL (ex: /pedido/4), validar se ela está livre
+        if (mesaParam > 0) {
+          const currentMesa = mappedMesas.find((m) => m.numero === mesaParam)
+          if (currentMesa && currentMesa.status !== 'Livre') {
+            const motivo =
+              currentMesa.status === 'Ocupada'
+                ? 'já está ocupada'
+                : currentMesa.status === 'Aguardando Pagamento'
+                  ? 'está em fechamento de conta'
+                  : 'está fechada'
+
+            setMesaBlockedError(
+              `A Mesa ${mesaParam} não está disponível (${motivo}). Por favor, escolha uma mesa desocupada ou solicite auxílio ao garçom.`,
+            )
+            setMesaNum(0)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar mesas:', err)
+    } finally {
+      setLoadingMesas(false)
+    }
+  }, [mesaParam])
+
+  useEffect(() => {
+    fetchMesas()
+  }, [fetchMesas])
+
+  // Ouvir alterações de status de mesas em tempo real (caso uma mesa seja liberada ou ocupada)
+  useEffect(() => {
+    const channel = supabase
+      .channel('pedido-mesas-status-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mesas',
+        },
+        () => {
+          fetchMesas()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchMesas])
 
   // Carrega cardápio público ativo do banco e taxa de entrega das configurações
   useEffect(() => {
@@ -472,6 +563,23 @@ export default function PedidoOnline() {
     }, 2000)
   }
 
+  // Se nenhuma mesa estiver selecionada ou se a mesa atual tiver sido bloqueada, exibe a tela de Seleção de Mesa
+  if (mesaNum <= 0) {
+    return (
+      <MesaSelector
+        mesas={mesasBanco}
+        loadingMesas={loadingMesas}
+        errorBanner={mesaBlockedError}
+        onClearError={() => setMesaBlockedError(null)}
+        onSelectMesa={(num) => {
+          setMesaBlockedError(null)
+          setMesaNum(num)
+          navigate(`/pedido/${num}`, { replace: true })
+        }}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#1C1917] text-[#F5F5F4] flex flex-col font-sans">
       {/* Top Header do Cardápio On-line */}
@@ -534,24 +642,23 @@ export default function PedidoOnline() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isDelivery ? (
-              <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Mesa Conectada
-              </span>
-            ) : (
-              <div className="flex items-center gap-1.5 bg-[#1C1917] px-2.5 py-1 rounded-lg border border-[#44403C] text-xs">
-                <span className="text-stone-400">Trocar mesa:</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  placeholder="Nº"
-                  onChange={(e) => setMesaNum(parseInt(e.target.value, 10) || 0)}
-                  className="w-12 bg-transparent text-amber-400 font-bold focus:outline-none text-center"
-                />
-              </div>
-            )}
+            <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Mesa Conectada
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMesaNum(0)
+                navigate('/pedido', { replace: true })
+              }}
+              className="bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-[11px] h-7 px-2"
+            >
+              <ArrowLeft className="w-3 h-3 mr-1" />
+              Trocar mesa
+            </Button>
           </div>
         </div>
 

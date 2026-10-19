@@ -161,7 +161,7 @@ export default function Login() {
         <div className="text-center text-xs text-stone-400">
           É um cliente querendo pedir na mesa?{' '}
           <a
-            href="/pedido/4"
+            href="/pedido"
             className="text-amber-400 hover:text-amber-300 underline font-semibold ml-1"
           >
             Abrir cardápio e pedido on-line
