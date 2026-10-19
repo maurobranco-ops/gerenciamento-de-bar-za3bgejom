@@ -35,6 +35,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { QRCodeSVG } from '@/components/QRCodeSVG'
 import { MesaSelector } from '@/components/MesaSelector'
 import { PainelPedirContaCliente } from '@/components/PainelPedirContaCliente'
+import { TotalizacaoConsumoMesa } from '@/components/TotalizacaoConsumoMesa'
 import { useToast } from '@/hooks/use-toast'
 import {
   StatusAcompanhamentoPedido,
@@ -461,7 +462,7 @@ export default function PedidoOnline() {
   useEffect(() => {
     if (mesaNum <= 0 && !activeComandaId) return
 
-    // 1. Canal Realtime Supabase ouvindo mudanças em fila_cozinha e comandas
+    // 1. Canal Realtime Supabase ouvindo mudanças em fila_cozinha, comandas e comanda_itens
     const channel = supabase
       .channel(`pedido-tracking-mesa-${mesaNum || 'delivery'}`)
       .on(
@@ -486,6 +487,19 @@ export default function PedidoOnline() {
         () => {
           // Atualiza dados da conta e fechamento em tempo real
           fetchDetalhesConta(true)
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comanda_itens',
+        },
+        () => {
+          // Atualiza totalização parcial e itens da comanda imediatamente a cada item adicionado/removido
+          fetchDetalhesConta(true)
+          fetchOrderStatus(true)
         },
       )
       .subscribe()
@@ -740,9 +754,12 @@ export default function PedidoOnline() {
       }
       setCartOpen(false)
 
-      // Atualiza imediatamente o acompanhamento ao vivo do pedido
+      // Atualiza imediatamente o acompanhamento e a totalização parcial da mesa
       setTimeout(() => {
         fetchOrderStatus(true)
+        if (mesaNum > 0) {
+          fetchDetalhesConta(true)
+        }
       }, 300)
 
       toast({
@@ -899,6 +916,15 @@ export default function PedidoOnline() {
           />
         )}
 
+        {/* TOTALIZAÇÃO PARCIAL DO CONSUMO DA MESA (Visível enquanto o atendimento está aberto, antes de pedir a conta) */}
+        {!isDelivery && mesaNum > 0 && !isContaAtiva && (
+          <TotalizacaoConsumoMesa
+            mesaNumero={mesaNum}
+            detalhesConta={detalhesConta}
+            loading={loadingDetalhesConta}
+          />
+        )}
+
         {/* ACOMPANHAMENTO AO VIVO DO STATUS DO PEDIDO (Oculto se solicitação de fechamento estiver ativa) */}
         {trackedItems.length > 0 && !isContaAtiva && (
           <StatusAcompanhamentoPedido
@@ -941,22 +967,37 @@ export default function PedidoOnline() {
                 )}
               </div>
 
-              {/* Categorias Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                      selectedCategory === cat
-                        ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/30'
-                        : 'bg-[#292524] text-stone-300 hover:bg-[#44403C] border border-[#44403C]'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+              {/* Categorias em Grade Responsiva (sem rolagem horizontal) */}
+              <div
+                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2"
+                role="tablist"
+                aria-label="Categorias do cardápio"
+              >
+                {categories.map((cat) => {
+                  const isSelected = selectedCategory === cat
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedCategory(cat)
+                        const menuSection = document.getElementById('secao-cardapio')
+                        if (menuSection) {
+                          menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }
+                      }}
+                      className={`px-2 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 border ${
+                        isSelected
+                          ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50'
+                          : 'bg-[#292524] text-stone-300 hover:bg-[#342D26] hover:text-stone-100 border-[#44403C]'
+                      }`}
+                    >
+                      <span className="truncate w-full">{cat}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
