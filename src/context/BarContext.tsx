@@ -260,13 +260,13 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
               const isUserAuthenticated = Boolean(user)
               const isOperacionalKitchenRoute =
-                currentPath === '/fila-cozinha' || currentPath.startsWith('/fila-cozinha/')
-              const isOperacionalKdsRoute =
-                currentPath === '/kds' || currentPath.startsWith('/kds/')
+                currentPath === '/fila-cozinha' ||
+                currentPath.startsWith('/fila-cozinha/') ||
+                currentPath === '/kds' ||
+                currentPath.startsWith('/kds/')
               const isOperacionalComandasRoute =
                 currentPath === '/comandas' || currentPath.startsWith('/comandas/')
-              const isOperacionalScreen =
-                isOperacionalKitchenRoute || isOperacionalKdsRoute || isOperacionalComandasRoute
+              const isOperacionalScreen = isOperacionalKitchenRoute || isOperacionalComandasRoute
 
               const soundSaved = localStorage.getItem('rachide_bar_sound_enabled')
               const isSoundOn = soundSaved !== null ? soundSaved === 'true' : true

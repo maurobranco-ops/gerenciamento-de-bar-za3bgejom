@@ -20,18 +20,21 @@ export default function Login() {
   const { session, role } = useAuth()
   const from = (location.state as any)?.from?.pathname
 
-  // Determina rota padrão de destino conforme perfil: Cozinha vai direto para /kds
+  // Determina rota padrão de destino conforme perfil: Cozinha vai direto para /fila-cozinha
   const targetDestination = React.useMemo(() => {
-    if (role === 'Cozinha') return '/kds'
-    if (from && from !== '/login') return from
+    if (role === 'Cozinha') return '/fila-cozinha'
+    if (from && from !== '/login') {
+      return from === '/kds' ? '/fila-cozinha' : from
+    }
     return '/'
   }, [role, from])
 
   // Se o usuário já estiver autenticado e acessar /login, redirecionar para a tela pretendida
   React.useEffect(() => {
     if (!authLoading && session) {
-      // Se for Cozinha ou se targetDestination for /kds, vai direto para /kds
-      const dest = role === 'Cozinha' ? '/kds' : targetDestination
+      // Se for Cozinha ou se targetDestination for /kds, vai direto para /fila-cozinha
+      const dest =
+        role === 'Cozinha' || targetDestination === '/kds' ? '/fila-cozinha' : targetDestination
       navigate(dest, { replace: true })
     }
   }, [authLoading, session, navigate, targetDestination, role])
@@ -50,9 +53,9 @@ export default function Login() {
           setErrorMessage(error.message || 'Erro ao efetuar login. Tente novamente.')
         }
       } else {
-        // Redirecionamento após login bem sucedido: se for Cozinha, cai direto em /kds
+        // Redirecionamento após login bem sucedido: se for Cozinha, cai direto em /fila-cozinha
         const isKitchen = email.trim().toLowerCase().includes('cozinha')
-        navigate(isKitchen ? '/kds' : targetDestination, { replace: true })
+        navigate(isKitchen ? '/fila-cozinha' : targetDestination, { replace: true })
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro inesperado na autenticação.')

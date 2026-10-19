@@ -460,18 +460,22 @@ export default function Comandas() {
               <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-current flex items-center justify-center font-black text-xl sm:text-2xl shadow-inner mb-1.5 sm:mb-2 bg-[#1C1917]/50">
                 {cmd.tableNumber}
               </div>
-
               <div className="w-full px-1">
-                <div
-                  className="font-bold text-xs sm:text-sm text-stone-100 truncate w-full"
-                  title={cmd.clientName || `Mesa ${cmd.tableNumber}`}
-                >
-                  {cmd.clientName || `Mesa ${cmd.tableNumber}`}
+                <div className="font-extrabold text-xs sm:text-sm text-amber-400 truncate w-full">
+                  Mesa {cmd.tableNumber}
                 </div>
                 {cmd.status !== 'Livre' ? (
-                  <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] text-stone-400 mt-0.5">
-                    <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    <span>{cmd.guestCount} pess.</span>
+                  <div className="space-y-0.5 mt-0.5">
+                    <div
+                      className="font-semibold text-xs text-stone-100 truncate w-full"
+                      title={cmd.clientName || 'Consumidor'}
+                    >
+                      {cmd.clientName || 'Consumidor'}
+                    </div>
+                    <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] text-stone-400">
+                      <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span>{cmd.guestCount} pess.</span>
+                    </div>
                   </div>
                 ) : (
                   cmd.capacity && (
@@ -481,7 +485,7 @@ export default function Comandas() {
                     </div>
                   )
                 )}
-              </div>
+              </div>{' '}
               <div className="mt-1.5 sm:mt-2 w-full pt-1.5 sm:pt-2 border-t border-current/20">
                 {cmd.status === 'Livre' ? (
                   <span className="text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1">

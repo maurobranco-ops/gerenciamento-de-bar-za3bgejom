@@ -446,7 +446,7 @@ export default function Dashboard() {
                 onClick={() => navigate('/fila-cozinha')}
                 className="text-amber-400 p-0 h-auto text-xs"
               >
-                Ir para o KDS <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                Ir para a Fila <ArrowRight className="w-3.5 h-3.5 ml-1" />
               </Button>
             </div>
           </div>

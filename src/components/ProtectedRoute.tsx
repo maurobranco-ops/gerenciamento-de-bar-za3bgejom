@@ -19,10 +19,10 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Se o usuário possui perfil Cozinha, seu acesso é EXCLUSIVO à tela KDS (/kds)
-  // Caso tente acessar qualquer outra rota protegida, redireciona diretamente para /kds
-  if (role === 'Cozinha' && location.pathname !== '/kds') {
-    return <Navigate to="/kds" replace />
+  // Se o usuário possui perfil Cozinha, seu acesso é EXCLUSIVO à tela Fila Cozinha & Bar (/fila-cozinha)
+  // Caso tente acessar qualquer outra rota protegida, redireciona diretamente para /fila-cozinha
+  if (role === 'Cozinha' && location.pathname !== '/fila-cozinha') {
+    return <Navigate to="/fila-cozinha" replace />
   }
 
   // Se o usuário possui perfil Garçom/Caixa/Gerente e porventura estiver na raiz ou outra tela, segue normal

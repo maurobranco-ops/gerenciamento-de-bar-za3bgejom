@@ -63,19 +63,10 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['Garçom', 'Caixa', 'Gerente'],
   },
   {
-    title: 'KDS Cozinha & Bar',
-    path: '/kds',
-    icon: Tv,
-    roles: ['Cozinha', 'Gerente'],
-    badgeCount: (ctx) =>
-      ctx.filaCozinha?.filter((i: any) => i.status === 'pendente' || i.status === 'preparando')
-        .length || 0,
-  },
-  {
     title: 'Fila Cozinha & Bar',
     path: '/fila-cozinha',
     icon: ChefHat,
-    roles: ['Garçom', 'Caixa', 'Gerente'],
+    roles: ['Cozinha', 'Garçom', 'Caixa', 'Gerente'],
     badgeCount: (ctx) =>
       ctx.filaCozinha?.filter((i: any) => i.status === 'pendente' || i.status === 'preparando')
         .length || 0,
@@ -176,7 +167,7 @@ export default function Layout() {
   const currentNav = NAV_ITEMS.find((item) => item.path === location.pathname)
   const currentTitle = currentNav?.title || 'Rachide Bar'
 
-  // Filter items by role: para o perfil Cozinha, esconde todos os itens bloqueados da sidebar e exibe somente o KDS Cozinha & Bar
+  // Filter items by role: para o perfil Cozinha, esconde todos os itens bloqueados da sidebar e exibe somente a Fila Cozinha & Bar
   const isCozinhaRole = role === 'Cozinha'
   const sidebarNavItems = isCozinhaRole
     ? NAV_ITEMS.filter((item) => item.roles.includes('Cozinha'))

@@ -262,6 +262,14 @@ export default function PedidoOnline() {
           } else if (isMinhaMesa) {
             // Mesa é do cliente: garante que erros anteriores sejam limpos e o atendimento mantido
             setMesaBlockedError(null)
+          } else if (
+            currentMesa &&
+            currentMesa.status === 'Livre' &&
+            (!storedAtendimento || storedAtendimento.mesaNumero !== mesaParam)
+          ) {
+            // Acesso direto por link/QR a uma mesa livre sem atendimento prévio deste aparelho:
+            // Deve voltar ao seletor para que o cliente informe seu nome antes de iniciar!
+            setMesaNum(0)
           }
         }
       }
@@ -621,19 +629,21 @@ export default function PedidoOnline() {
     }
   }, [cart, mesaNum])
 
-  // Persiste atendimento localmente sempre que o cliente entrar numa mesa
+  // Persiste atendimento localmente sempre que o cliente entrar numa mesa mantendo o nome do AtendimentoStorage
   useEffect(() => {
     if (mesaNum > 0) {
       const defaultComandaId = `cmd-${mesaNum < 10 ? `0${mesaNum}` : mesaNum}`
       const targetComanda = activeComandaId || defaultComandaId
+      const currentStored = AtendimentoStorage.get()
       AtendimentoStorage.set({
         mesaNumero: mesaNum,
         comandaId: targetComanda,
-        clienteNome: clientName || undefined,
+        clienteNome:
+          currentStored?.clienteNome || (isDelivery ? clientName || undefined : undefined),
       })
       setAtendimentoAtivo(AtendimentoStorage.get())
     }
-  }, [mesaNum, activeComandaId, clientName])
+  }, [mesaNum, activeComandaId, clientName, isDelivery])
 
   // Interceptar botão Voltar do navegador via popstate quando estiver dentro de uma mesa ativa
   useEffect(() => {
@@ -685,10 +695,14 @@ export default function PedidoOnline() {
         observacoes: item.observations || undefined,
       }))
 
+      // Para mesa: não sobrescreve cliente_nome. O nome já foi informado e gravado na abertura da mesa.
+      const nomeParaEnvio = isDelivery
+        ? clientName.trim() || 'Cliente Delivery'
+        : AtendimentoStorage.get()?.clienteNome || ''
+
       const { data, error } = await (supabase.rpc as any)('enviar_pedido_online', {
         p_mesa_numero: mesaNum > 0 ? mesaNum : 10,
-        p_cliente_nome:
-          clientName.trim() || (isDelivery ? 'Cliente Delivery' : `Cliente Mesa ${mesaNum}`),
+        p_cliente_nome: nomeParaEnvio,
         p_itens: itensPayload,
       })
 
@@ -704,7 +718,7 @@ export default function PedidoOnline() {
       AtendimentoStorage.set({
         mesaNumero: mesaNum > 0 ? mesaNum : 10,
         comandaId: targetComandaId,
-        clienteNome: clientName.trim() || undefined,
+        clienteNome: AtendimentoStorage.get()?.clienteNome || clientName.trim() || undefined,
       })
       setAtendimentoAtivo(AtendimentoStorage.get())
 
@@ -777,7 +791,6 @@ export default function PedidoOnline() {
           setDetalhesConta(null)
           setTrackedItems([])
           setMesaNum(num)
-          AtendimentoStorage.set({ mesaNumero: num })
           setAtendimentoAtivo(AtendimentoStorage.get())
           navigate(`/pedido/${num}`, { replace: true })
         }}
@@ -1161,18 +1174,27 @@ export default function PedidoOnline() {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Identificação do Cliente */}
-            <div>
-              <Label className="text-xs text-stone-300 font-semibold">
-                Seu nome (para a comanda):
-              </Label>
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Ex: João da Silva, Turma do Happy Hour..."
-                className="mt-1 bg-[#1C1917] border-[#44403C] text-xs text-stone-100"
-              />
-            </div>
+            {/* Identificação do Cliente: exibido apenas para Delivery (no salão, o nome é definido na abertura da mesa) */}
+            {isDelivery ? (
+              <div>
+                <Label className="text-xs text-stone-300 font-semibold">
+                  Seu nome (para o pedido delivery):
+                </Label>
+                <Input
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Ex: João da Silva..."
+                  className="mt-1 bg-[#1C1917] border-[#44403C] text-xs text-stone-100"
+                />
+              </div>
+            ) : (
+              atendimentoAtivo?.clienteNome && (
+                <div className="p-2.5 rounded-lg bg-[#1C1917] border border-[#44403C] flex items-center justify-between text-xs">
+                  <span className="text-stone-400">Comanda em nome de:</span>
+                  <span className="font-bold text-amber-400">{atendimentoAtivo.clienteNome}</span>
+                </div>
+              )
+            )}
 
             {/* Itens */}
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
