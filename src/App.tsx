@@ -23,6 +23,7 @@ import PedidosOnlineManager from './pages/PedidosOnlineManager'
 import Configuracoes from './pages/Configuracoes'
 import Usuarios from './pages/Usuarios'
 import Apresentacao from './pages/Apresentacao'
+import PlanoNFCe from './pages/PlanoNFCe'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 
@@ -56,6 +57,7 @@ export function App() {
                   <Route path="usuarios" element={<Usuarios />} />
                   <Route path="configuracoes" element={<Configuracoes />} />
                   <Route path="apresentacao" element={<Apresentacao />} />
+                  <Route path="plano-nfce" element={<PlanoNFCe />} />
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Route>

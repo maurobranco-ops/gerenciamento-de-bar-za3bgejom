@@ -22,6 +22,7 @@ import {
   PackagePlus,
   Settings,
   Presentation,
+  FileCode2,
   Tv,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
@@ -118,6 +119,12 @@ const NAV_ITEMS: NavItem[] = [
     path: '/fiscal',
     icon: ReceiptText,
     roles: ['Gerente'],
+  },
+  {
+    title: 'Plano NFC-e (Provedor)',
+    path: '/plano-nfce',
+    icon: FileCode2,
+    roles: ['Gerente', 'Caixa'],
   },
   {
     title: 'Usuários & Equipe',

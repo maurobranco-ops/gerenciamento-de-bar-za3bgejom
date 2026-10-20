@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ReceiptText,
   AlertTriangle,
@@ -23,6 +24,7 @@ import { Progress } from '../components/ui/progress'
 import { useToast } from '../hooks/use-toast'
 
 export default function Fiscal() {
+  const navigate = useNavigate()
   const { fiscalDocs, issueFiscalDoc, cancelFiscalDoc, comandas, settings } = useBar()
   const { toast } = useToast()
 
@@ -175,10 +177,19 @@ export default function Fiscal() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/plano-nfce')}
+            className="bg-[#1C1917] border-amber-500/50 hover:bg-amber-500/10 text-amber-400 text-xs font-semibold flex items-center gap-1.5 h-8"
+          >
+            <ReceiptText className="w-3.5 h-3.5" />
+            <span>Ver Plano Provedor SEFAZ-PB</span>
+          </Button>
           <Badge className="bg-stone-800 text-stone-300 border-stone-700 text-xs px-3 py-1">
             Série 001 • {settings?.nomeFantasia || 'Rachide Bar'}
           </Badge>
-        </div>{' '}
+        </div>
       </div>
 
       {/* Issuance Card + Totals Card Grid */}
