@@ -1232,6 +1232,43 @@ export const BarService = {
     return data
   },
 
+  /**
+   * Transfere integralmente o atendimento de uma mesa para outra (Garçom, Caixa ou Gerente).
+   * A comanda, todos os itens, totalização e status da conta são transferidos.
+   * A mesa de origem é higienizada e marcada como Livre imediatamente.
+   */
+  async transferirMesa(
+    mesaOrigem: number,
+    mesaDestino: number,
+  ): Promise<{
+    sucesso: boolean
+    codigo?: string
+    mesa_origem?: number
+    mesa_destino?: number
+    comanda_origem_id?: string
+    comanda_destino_id?: string
+    cliente_nome?: string
+    status_comanda?: TableStatus
+    status_conta?: StatusContaCliente
+    conta_solicitada?: boolean
+    forma_pagamento?: string
+    total?: number
+    itens_transferidos?: number
+    mensagem: string
+  }> {
+    const { data, error } = await (db.rpc as any)('transferir_mesa_atendimento', {
+      p_mesa_origem: mesaOrigem,
+      p_mesa_destino: mesaDestino,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC transferir_mesa_atendimento:', error)
+      throw error
+    }
+
+    return data
+  },
+
   // --- CONFIGURAÇÕES DO BAR ---
   async fetchConfiguracoes(): Promise<BarSettings> {
     const { data, error } = await db

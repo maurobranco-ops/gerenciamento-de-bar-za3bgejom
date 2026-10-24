@@ -134,7 +134,7 @@ export default function PedidoOnline() {
     return AtendimentoStorage.get()
   })
 
-  // Modal de confirmação ao sair da tela da mesa (trocar mesa / voltar)
+  // Modal de confirmação ao sair da tela da mesa (voltar para o início)
   const [modalConfirmarSaidaOpen, setModalConfirmarSaidaOpen] = useState(false)
 
   // Estado do fluxo Pedir a Conta
@@ -254,13 +254,60 @@ export default function PedidoOnline() {
         }))
         setMesasBanco(mappedMesas)
 
-        // Se uma mesa veio na URL (ex: /pedido/4), validar se ela está livre
+        // Se uma mesa veio na URL (ex: /pedido/4), validar se ela está disponível ou se houve transferência
         if (mesaParam > 0) {
           const currentMesa = mappedMesas.find((m) => m.numero === mesaParam)
           const storedAtendimento = AtendimentoStorage.get()
           const isMinhaMesa = storedAtendimento && storedAtendimento.mesaNumero === mesaParam
 
-          // Se a mesa estiver ocupada por OUTRO aparelho, bloqueia; se for deste aparelho, permite continuar!
+          // VERIFICAÇÃO DE TRANSFERÊNCIA DE MESA:
+          // Se o cliente tinha atendimento nesta mesa, mas a mesa no banco virou 'Livre',
+          // verificar se o atendimento/comanda foi transferido pela equipe para outra mesa!
+          if (isMinhaMesa && currentMesa && currentMesa.status === 'Livre') {
+            try {
+              // Verifica se a comanda antiga existe e foi movida para outra mesa ou se o cliente agora está em outra comanda
+              const { data: cmdTransferida } = await (supabase as any)
+                .from('comandas')
+                .select('id, mesa_numero, cliente_nome, status')
+                .eq('cliente_nome', storedAtendimento.clienteNome)
+                .neq('status', 'Livre')
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+              if (cmdTransferida && cmdTransferida.mesa_numero !== mesaParam) {
+                // A equipe transferiu a mesa do cliente! Atualiza o armazenamento local para a nova mesa
+                AtendimentoStorage.set({
+                  mesaNumero: cmdTransferida.mesa_numero,
+                  comandaId: cmdTransferida.id,
+                  clienteNome: storedAtendimento.clienteNome,
+                })
+                setAtendimentoAtivo(AtendimentoStorage.get())
+                setMesaNum(cmdTransferida.mesa_numero)
+                setActiveComandaId(cmdTransferida.id)
+                navigate(`/pedido/${cmdTransferida.mesa_numero}`, { replace: true })
+                toast({
+                  title: `Atendimento transferido para a Mesa ${cmdTransferida.mesa_numero}!`,
+                  description: 'A equipe do bar moveu sua comanda e consumo para esta nova mesa.',
+                })
+                return
+              } else {
+                // A mesa foi liberada/fechada e não há comanda ativa: limpa os dados antigos para não ver lixo
+                AtendimentoStorage.clear()
+                setAtendimentoAtivo(null)
+                setDetalhesConta(null)
+                setTrackedItems([])
+                setActiveComandaId('')
+                setMesaNum(0)
+                navigate('/pedido', { replace: true })
+                return
+              }
+            } catch (syncErr) {
+              console.warn('Erro ao verificar possível transferência de mesa:', syncErr)
+            }
+          }
+
+          // Se a mesa estiver ocupada por OUTRO cliente/aparelho, bloqueia
           if (currentMesa && currentMesa.status !== 'Livre' && !isMinhaMesa) {
             const motivo =
               currentMesa.status === 'Ocupada'
@@ -292,7 +339,7 @@ export default function PedidoOnline() {
     } finally {
       setLoadingMesas(false)
     }
-  }, [mesaParam])
+  }, [mesaParam, navigate, toast])
 
   useEffect(() => {
     fetchMesas()
@@ -935,19 +982,6 @@ export default function PedidoOnline() {
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Mesa Conectada
                 </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Intercepta a saída da mesa com confirmação acolhedora
-                    setModalConfirmarSaidaOpen(true)
-                  }}
-                  className="bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-300 text-[11px] h-7 px-2"
-                >
-                  <ArrowLeft className="w-3 h-3 mr-1" />
-                  Trocar mesa
-                </Button>
               </div>
             </div>
 
@@ -1556,10 +1590,13 @@ export default function PedidoOnline() {
 
           <div className="space-y-4 pt-1 text-center">
             <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-              Deseja realmente sair da tela da mesa? Seu consumo, pedidos e carrinho{' '}
-              <strong className="text-amber-400">permanecem salvos</strong> e você poderá voltar a
-              qualquer momento selecionando a <strong>Mesa {mesaNum}</strong> ou pelo atalho{' '}
+              Seu atendimento está ativo na <strong>Mesa {mesaNum}</strong>. Seu consumo e pedidos{' '}
+              <strong className="text-amber-400">permanecem salvos com segurança</strong> e você
+              poderá voltar a qualquer momento pelo botão{' '}
               <strong className="text-amber-400">"Continuar meu atendimento"</strong>.
+            </p>
+            <p className="text-[11px] text-stone-400">
+              Para transferência de mesa, solicite diretamente ao garçom ou ao caixa do bar.
             </p>
 
             <div className="p-3 rounded-xl bg-[#1C1917] border border-[#44403C] text-left text-xs space-y-1">
@@ -1569,7 +1606,7 @@ export default function PedidoOnline() {
               </div>
               <div className="flex items-center justify-between text-stone-400">
                 <span>Status da comanda:</span>
-                <span className="text-emerald-400 font-semibold">Em andamento</span>
+                <span className="text-emerald-400 font-semibold">Atendimento em andamento</span>
               </div>
             </div>
 
@@ -1580,14 +1617,14 @@ export default function PedidoOnline() {
                 onClick={() => setModalConfirmarSaidaOpen(false)}
                 className="flex-1 bg-[#1C1917] hover:bg-[#342D26] border-[#44403C] text-stone-200 text-xs h-10"
               >
-                Continuar na Mesa {mesaNum}
+                Permanecer na Mesa {mesaNum}
               </Button>
               <Button
                 type="button"
                 onClick={executarSaidaMesa}
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs h-10 shadow-md shadow-amber-950/40"
               >
-                Sair mesmo assim
+                Entendi, sair
               </Button>
             </div>
           </div>

@@ -21,6 +21,7 @@ import {
   Copy,
   AlertTriangle,
   Settings as SettingsIcon,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { TableStatus, Comanda, MenuItem, PaymentMethod } from '../types/bar'
@@ -50,6 +51,7 @@ export default function Comandas() {
     closeAndPayComanda,
     caixaAutorizarFecharConta,
     caixaRecusarAdiarConta,
+    transferirMesa,
     settings,
   } = useBar()
 
@@ -87,6 +89,12 @@ export default function Comandas() {
   // Modal de Recusa / Adiamento com motivo
   const [comandaParaRecusar, setComandaParaRecusar] = useState<Comanda | null>(null)
   const [modalRecusarOpen, setModalRecusarOpen] = useState(false)
+
+  // Modal de Transferência de Mesa (Garçom, Caixa e Gerente)
+  const [comandaParaTransferir, setComandaParaTransferir] = useState<Comanda | null>(null)
+  const [mesaDestinoSelecionada, setMesaDestinoSelecionada] = useState<number | null>(null)
+  const [modalTransferirOpen, setModalTransferirOpen] = useState(false)
+  const [isTransferindo, setIsTransferindo] = useState(false)
 
   // Keep selectedTable updated with context changes
   const currentComanda = selectedTable
@@ -286,6 +294,34 @@ export default function Comandas() {
     setModalRecusarOpen(true)
   }
 
+  // Abrir modal de transferência de mesa
+  const handleAbrirTransferencia = (cmd: Comanda) => {
+    setComandaParaTransferir(cmd)
+    // Procurar primeira mesa livre disponível para pré-seleção
+    const primeiraLivre = comandas.find(
+      (c) => c.status === 'Livre' && c.tableNumber !== cmd.tableNumber,
+    )
+    setMesaDestinoSelecionada(primeiraLivre ? primeiraLivre.tableNumber : null)
+    setModalTransferirOpen(true)
+  }
+
+  const handleConfirmarTransferencia = async () => {
+    if (!comandaParaTransferir || !mesaDestinoSelecionada) return
+
+    setIsTransferindo(true)
+    try {
+      const ok = await transferirMesa(comandaParaTransferir.tableNumber, mesaDestinoSelecionada)
+      if (ok) {
+        setModalTransferirOpen(false)
+        setComandaParaTransferir(null)
+        setMesaDestinoSelecionada(null)
+        setSelectedTable(null)
+      }
+    } finally {
+      setIsTransferindo(false)
+    }
+  }
+
   // Confirmação manual de pagamento (Caixa/Gerente confere recebimento na conta do bar)
   const handleManualConfirmPix = async () => {
     if (!activePayingComanda) return
@@ -442,6 +478,145 @@ export default function Comandas() {
           return await caixaRecusarAdiarConta(mesaNumero, motivo)
         }}
       />
+
+      {/* Modal para Transferência de Mesa (Garçom, Caixa e Gerente) */}
+      <Dialog
+        open={modalTransferirOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setModalTransferirOpen(false)
+            setComandaParaTransferir(null)
+            setMesaDestinoSelecionada(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-md bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg font-black text-stone-100 flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-amber-400" />
+              <span>Transferir Atendimento de Mesa</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {comandaParaTransferir && (
+            <div className="space-y-4 pt-2 text-xs sm:text-sm">
+              <div className="p-3.5 rounded-xl bg-[#1C1917] border border-[#44403C] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-stone-400">Mesa Atual (Origem):</span>
+                  <span className="font-extrabold text-amber-400 text-sm">
+                    Mesa {comandaParaTransferir.tableNumber}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-stone-400">Cliente / Comanda:</span>
+                  <span className="font-semibold text-stone-200">
+                    {comandaParaTransferir.clientName || 'Cliente'} (
+                    {comandaParaTransferir.items.length} itens)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-stone-400">Total Acumulado:</span>
+                  <span className="font-bold text-amber-400">
+                    R$ {computeTotal(comandaParaTransferir).toFixed(2)}
+                  </span>
+                </div>
+                {comandaParaTransferir.contaSolicitada && (
+                  <div className="pt-1 text-[11px] text-purple-300 font-semibold flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-purple-400" />
+                    Conta solicitada via {comandaParaTransferir.formaPagamentoSolicitada ||
+                      'Pix'}{' '}
+                    (o status acompanhará a nova mesa)
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-stone-300 font-semibold mb-2 block">
+                  Selecione a Nova Mesa de Destino (Livre):
+                </Label>
+                {comandas.filter(
+                  (c) =>
+                    c.status === 'Livre' && c.tableNumber !== comandaParaTransferir.tableNumber,
+                ).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/40 text-red-300 text-xs text-center">
+                    Não há mesas Livres disponíveis no momento para receber a transferência. Libere
+                    uma mesa antes.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                    {comandas
+                      .filter(
+                        (c) =>
+                          c.status === 'Livre' &&
+                          c.tableNumber !== comandaParaTransferir.tableNumber,
+                      )
+                      .sort((a, b) => a.tableNumber - b.tableNumber)
+                      .map((c) => {
+                        const isSelected = mesaDestinoSelecionada === c.tableNumber
+                        return (
+                          <button
+                            key={c.tableNumber}
+                            type="button"
+                            onClick={() => setMesaDestinoSelecionada(c.tableNumber)}
+                            className={`p-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-black shadow-md ring-1 ring-amber-500'
+                                : 'bg-[#1C1917] border-[#44403C] text-stone-300 hover:border-stone-500'
+                            }`}
+                          >
+                            <span className="text-xs font-bold">Mesa</span>
+                            <span className="text-base font-black">{c.tableNumber}</span>
+                          </button>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200/90 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-amber-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Regras da Transferência
+                </p>
+                <p>
+                  • A comanda com todos os itens, valores e fila de fechamento é movida
+                  integralmente para a nova mesa.
+                </p>
+                <p>
+                  • A Mesa {comandaParaTransferir.tableNumber} é desvinculada, limpa e fica
+                  imediatamente Livre no salão.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#44403C]">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isTransferindo}
+                  onClick={() => {
+                    setModalTransferirOpen(false)
+                    setComandaParaTransferir(null)
+                    setMesaDestinoSelecionada(null)
+                  }}
+                  className="text-stone-400 hover:text-stone-200 text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!mesaDestinoSelecionada || isTransferindo}
+                  onClick={handleConfirmarTransferencia}
+                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs h-9 px-4"
+                >
+                  {isTransferindo
+                    ? 'Transferindo...'
+                    : `Confirmar Transferência para Mesa ${mesaDestinoSelecionada || ''}`}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Visual Table Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 pb-6">
@@ -858,16 +1033,11 @@ export default function Comandas() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      toast({
-                        title: `Garçom solicitado para a Mesa ${currentComanda.tableNumber}`,
-                        description: `Chamado enviado para a equipe de salão.`,
-                      })
-                    }}
-                    className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:text-white text-xs h-10 sm:h-9 flex items-center justify-center"
+                    onClick={() => handleAbrirTransferencia(currentComanda)}
+                    className="bg-[#1C1917] border-[#44403C] hover:border-amber-500/50 text-stone-200 hover:text-amber-400 text-xs h-10 sm:h-9 flex items-center justify-center"
                   >
-                    <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
-                    <span>Chamar Garçom</span>
+                    <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
+                    <span>Transferir Mesa</span>
                   </Button>
                 </div>
 

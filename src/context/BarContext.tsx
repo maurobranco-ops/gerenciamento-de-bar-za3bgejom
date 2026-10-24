@@ -88,6 +88,7 @@ interface BarContextType {
     marcarEmProcessamentoPix?: boolean
   }) => Promise<boolean>
   caixaRecusarAdiarConta: (mesaNumero: number, motivo: string) => Promise<boolean>
+  transferirMesa: (mesaOrigem: number, mesaDestino: number) => Promise<boolean>
 
   // Stock actions
   updateStockItem: (
@@ -840,6 +841,105 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
+  // --- TRANSFERÊNCIA DE MESA (GARÇOM, CAIXA E GERENTE) ---
+  const transferirMesa = async (mesaOrigem: number, mesaDestino: number): Promise<boolean> => {
+    if (!checkRoleAccess(['Garçom', 'Caixa', 'Gerente'], 'transferir mesa')) return false
+
+    try {
+      const res = await BarService.transferirMesa(mesaOrigem, mesaDestino)
+      if (!res.sucesso) {
+        toast({
+          variant: 'destructive',
+          title: 'Não foi possível transferir a mesa',
+          description: res.mensagem || 'Falha na validação de transferência.',
+        })
+        return false
+      }
+
+      // Atualiza com precisão os estados locais de comandas e mesas
+      setComandas((prev) => {
+        const cmdOrigem = prev.find((c) => c.tableNumber === mesaOrigem)
+        const cmdDestino = prev.find((c) => c.tableNumber === mesaDestino)
+
+        return prev.map((c) => {
+          if (c.tableNumber === mesaOrigem) {
+            // Mesa de origem agora fica livre
+            return {
+              ...c,
+              status: 'Livre',
+              clientName: undefined,
+              guestCount: 0,
+              openedAt: '',
+              closedAt: undefined,
+              items: [],
+              contaSolicitada: false,
+              contaSolicitadaEm: undefined,
+              formaPagamentoSolicitada: undefined,
+              statusConta: 'nenhum',
+              motivoRecusaConta: undefined,
+            }
+          }
+          if (c.tableNumber === mesaDestino && cmdOrigem) {
+            // Mesa de destino herda integralmente o atendimento e os itens
+            return {
+              ...c,
+              id: `cmd-${mesaDestino < 10 ? `0${mesaDestino}` : mesaDestino}`,
+              status: cmdOrigem.status,
+              clientName: cmdOrigem.clientName,
+              guestCount: cmdOrigem.guestCount,
+              openedAt: cmdOrigem.openedAt,
+              closedAt: cmdOrigem.closedAt,
+              items: cmdOrigem.items,
+              includeServiceFee: cmdOrigem.includeServiceFee,
+              contaSolicitada: cmdOrigem.contaSolicitada,
+              contaSolicitadaEm: cmdOrigem.contaSolicitadaEm,
+              formaPagamentoSolicitada: cmdOrigem.formaPagamentoSolicitada,
+              statusConta: cmdOrigem.statusConta,
+              motivoRecusaConta: cmdOrigem.motivoRecusaConta,
+            }
+          }
+          return c
+        })
+      })
+
+      setMesas((prev) => {
+        const origemMesa = prev.find((m) => m.numero === mesaOrigem)
+        return prev.map((m) => {
+          if (m.numero === mesaOrigem) return { ...m, status: 'Livre' }
+          if (m.numero === mesaDestino && origemMesa) {
+            return { ...m, status: origemMesa.status }
+          }
+          return m
+        })
+      })
+
+      // Sincroniza também com o banco em background para consistência máxima
+      BarService.fetchComandas()
+        .then(setComandas)
+        .catch(() => {})
+      BarService.fetchMesas()
+        .then(setMesas)
+        .catch(() => {})
+      BarService.fetchFilaCozinha()
+        .then(setFilaCozinha)
+        .catch(() => {})
+
+      toast({
+        title: `Mesa ${mesaOrigem} transferida para a Mesa ${mesaDestino}!`,
+        description: res.mensagem || 'Comanda, itens e status transferidos com sucesso.',
+      })
+      return true
+    } catch (err: any) {
+      console.error('Erro ao transferir mesa:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao transferir mesa',
+        description: err.message || 'Falha ao processar transferência no servidor.',
+      })
+      return false
+    }
+  }
+
   // --- ESTOQUE ---
   // --- CRUD GERENCIAL DE PRODUTOS ---
   const createProduct = async (payload: SaveProductPayload): Promise<boolean> => {
@@ -1218,6 +1318,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeAndPayComanda,
         caixaAutorizarFecharConta,
         caixaRecusarAdiarConta,
+        transferirMesa,
         updateStockItem,
         addStockSupply,
         addCashMovement,
