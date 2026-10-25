@@ -465,46 +465,24 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
   // Estado padrão: Mesa aberta com itens, cliente pode pedir a conta
   return (
     <>
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#292524] via-[#342D26] to-[#1C1917] border border-amber-500/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-stone-950 flex items-center justify-center shrink-0 shadow-md shadow-amber-950/40">
-            <Receipt className="w-6 h-6 stroke-[2.2]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-black text-sm sm:text-base text-stone-100">
-                Encerrar Atendimento
-              </h3>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-bold">
-                Mesa {mesaNumero}
-              </Badge>
-            </div>
-            <p className="text-xs text-stone-300 mt-1 max-w-md">
-              Pronto para ir embora? Peça a conta direto pelo celular: escolha Pix, cartão ou
-              dinheiro e o Caixa já prepara o fechamento da sua mesa.
-            </p>
-          </div>
-        </div>
-
-        <Button
-          onClick={() => setModalOpen(true)}
-          disabled={loadingDetalhes || submittingConta || !hasItens}
-          className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black text-xs sm:text-sm h-11 px-5 rounded-xl shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 whitespace-nowrap border border-amber-400/40 transition-transform active:scale-95"
-        >
-          {loadingDetalhes ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Verificando...</span>
-            </>
-          ) : (
-            <>
-              <Receipt className="w-4 h-4" />
-              <span>Pedir a Conta</span>
-              <ChevronRight className="w-4 h-4 ml-0.5" />
-            </>
-          )}
-        </Button>
-      </div>
+      <Button
+        onClick={() => setModalOpen(true)}
+        disabled={loadingDetalhes || submittingConta || !hasItens}
+        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-black text-sm sm:text-base h-12 rounded-2xl shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 border border-amber-400/40 transition-transform active:scale-[0.99]"
+      >
+        {loadingDetalhes ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Verificando comanda...</span>
+          </>
+        ) : (
+          <>
+            <Receipt className="w-4 h-4 stroke-[2.4]" />
+            <span>Pedir a Conta</span>
+            <ChevronRight className="w-4 h-4 ml-0.5" />
+          </>
+        )}
+      </Button>
 
       {/* Modal de Confirmação + Seleção de Pagamento */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

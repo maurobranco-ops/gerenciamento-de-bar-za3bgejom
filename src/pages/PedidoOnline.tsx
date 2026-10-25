@@ -960,25 +960,19 @@ export default function PedidoOnline() {
           />
         ) : (
           <>
-            {/* Banner de Boas-Vindas */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#292524] to-[#342D26] border border-amber-500/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <h2 className="font-extrabold text-sm sm:text-base text-stone-100">
-                    {isDelivery
-                      ? 'Faça seu pedido para entrega ou retirada'
-                      : `Você está na Mesa ${mesaNum}`}
-                  </h2>
-                </div>
-                <p className="text-xs text-stone-300 mt-1">
-                  Peça direto do seu celular: seu pedido vai em tempo real para a cozinha e bar do
-                  Rachide Bar.
-                </p>
+            {/* Cabeçalho Compacto: Você está na Mesa X + Selo Mesa Conectada */}
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-[#292524] to-[#342D26] border border-amber-500/30 shadow-lg flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                <h2 className="font-extrabold text-sm sm:text-base text-stone-100 truncate">
+                  {isDelivery
+                    ? 'Faça seu pedido para entrega ou retirada'
+                    : `Você está na Mesa ${mesaNum}`}
+                </h2>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+              <div className="flex items-center shrink-0">
+                <span className="text-[11px] text-emerald-400 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 whitespace-nowrap">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Mesa Conectada
                 </span>
