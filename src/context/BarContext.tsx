@@ -951,7 +951,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast({
         variant: 'destructive',
         title: 'Mesa possui consumo lançado',
-        description: `A Mesa ${mesaNumero} possui ${currentCmd.items.length} produto(s). Use o fluxo de pagamento para encerrar.`,
+        description: `A Mesa ${mesaNumero} possui ${currentCmd.items.length} item(ns) lançado(s). Para mesas com consumo, utilize o fluxo de Enviar para Pagamento / Caixa.`,
       })
       return false
     }
@@ -959,9 +959,16 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await BarService.fecharMesaSemConsumo(mesaNumero)
       if (!res.sucesso) {
+        const titulo =
+          res.codigo === 'TOTAL_RESIDUAL_SEM_ITENS'
+            ? 'Total residual registrado'
+            : res.codigo === 'MESA_COM_CONSUMO'
+              ? 'Mesa possui consumo lançado'
+              : 'Não foi possível fechar a mesa'
+
         toast({
           variant: 'destructive',
-          title: 'Não foi possível fechar a mesa',
+          title: titulo,
           description: res.mensagem || 'Falha na validação no servidor.',
         })
         return false

@@ -306,7 +306,7 @@ export default function Comandas() {
       toast({
         variant: 'destructive',
         title: 'Mesa possui consumo lançado',
-        description: `Esta mesa possui ${cmd.items.length} produto(s). Use o fluxo de pagamento para encerrar.`,
+        description: `Esta mesa possui ${cmd.items.length} item(ns) lançado(s). Para mesas com consumo, utilize o fluxo de Enviar para Pagamento / Caixa.`,
       })
       return
     }
