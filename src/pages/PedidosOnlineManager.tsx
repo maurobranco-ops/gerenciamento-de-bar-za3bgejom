@@ -21,24 +21,36 @@ export default function PedidosOnlineManager() {
   const { toast } = useToast()
   const [copiedMesa, setCopiedMesa] = useState<number | null>(null)
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://rachide.bar'
+  // Base pública de produção do app (URL de preview pública especificada pelo usuário) ou fallback dinâmico para window.location.origin
+  const publicBaseUrl =
+    typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+      ? window.location.origin
+      : 'https://gerenciamento-de-bar-a7f41.goskip.app'
 
   // Garante ordenação das mesas
   const sortedMesas = [...mesas].sort((a, b) => a.numero - b.numero)
 
+  // Monta URL pública com query param /pedido?mesa=X
+  const getTablePublicUrl = (numero: number) => {
+    if (!numero || numero <= 0) {
+      return `${publicBaseUrl}/pedido`
+    }
+    return `${publicBaseUrl}/pedido?mesa=${numero}`
+  }
+
   const handleCopyLink = (numero: number) => {
-    const url = `${origin}/pedido/${numero}`
+    const url = getTablePublicUrl(numero)
     navigator.clipboard.writeText(url)
     setCopiedMesa(numero)
     toast({
-      title: `Link copiado: Mesa ${numero}`,
+      title: numero > 0 ? `Link copiado: Mesa ${numero}` : 'Link copiado: Atendimento On-line',
       description: url,
     })
     setTimeout(() => setCopiedMesa(null), 2500)
   }
 
   const handlePrintTableQR = async (numero: number) => {
-    const url = `${origin}/pedido/${numero}`
+    const url = getTablePublicUrl(numero)
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
@@ -189,7 +201,7 @@ export default function PedidosOnlineManager() {
       {/* Grid de QR Codes por Mesa */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pb-8">
         {sortedMesas.map((mesa) => {
-          const mesaUrl = `${origin}/pedido/${mesa.numero}`
+          const mesaUrl = getTablePublicUrl(mesa.numero)
           const isCopied = copiedMesa === mesa.numero
 
           return (

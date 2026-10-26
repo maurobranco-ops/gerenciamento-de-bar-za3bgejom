@@ -89,6 +89,7 @@ interface BarContextType {
   }) => Promise<boolean>
   caixaRecusarAdiarConta: (mesaNumero: number, motivo: string) => Promise<boolean>
   transferirMesa: (mesaOrigem: number, mesaDestino: number) => Promise<boolean>
+  fecharMesaSemConsumo: (mesaNumero: number) => Promise<boolean>
 
   // Stock actions
   updateStockItem: (
@@ -940,6 +941,82 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }
 
+  // --- FECHAR MESA SEM CONSUMO (GARÇOM, CAIXA E GERENTE) ---
+  const fecharMesaSemConsumo = async (mesaNumero: number): Promise<boolean> => {
+    if (!checkRoleAccess(['Garçom', 'Caixa', 'Gerente'], 'fechar mesa sem consumo')) return false
+
+    // Validação preliminar local: garantir que não há itens na comanda antes de chamar o servidor
+    const currentCmd = comandas.find((c) => c.tableNumber === mesaNumero)
+    if (currentCmd && currentCmd.items && currentCmd.items.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Mesa possui consumo lançado',
+        description: `A Mesa ${mesaNumero} possui ${currentCmd.items.length} produto(s). Use o fluxo de pagamento para encerrar.`,
+      })
+      return false
+    }
+
+    try {
+      const res = await BarService.fecharMesaSemConsumo(mesaNumero)
+      if (!res.sucesso) {
+        toast({
+          variant: 'destructive',
+          title: 'Não foi possível fechar a mesa',
+          description: res.mensagem || 'Falha na validação no servidor.',
+        })
+        return false
+      }
+
+      // Atualiza comanda local para status 'Livre' e higieniza dados
+      setComandas((prev) =>
+        prev.map((c) => {
+          if (c.tableNumber === mesaNumero) {
+            return {
+              ...c,
+              status: 'Livre',
+              clientName: undefined,
+              guestCount: 0,
+              openedAt: '',
+              closedAt: undefined,
+              items: [],
+              contaSolicitada: false,
+              contaSolicitadaEm: undefined,
+              formaPagamentoSolicitada: undefined,
+              statusConta: 'nenhum',
+              motivoRecusaConta: undefined,
+            }
+          }
+          return c
+        }),
+      )
+
+      // Atualiza mesa local para 'Livre'
+      setMesas((prev) => prev.map((m) => (m.numero === mesaNumero ? { ...m, status: 'Livre' } : m)))
+
+      // Sincroniza em background com o banco
+      BarService.fetchComandas()
+        .then(setComandas)
+        .catch(() => {})
+      BarService.fetchMesas()
+        .then(setMesas)
+        .catch(() => {})
+
+      toast({
+        title: `Mesa ${mesaNumero} liberada com sucesso!`,
+        description: res.mensagem || 'Mesa sem consumo encerrada e liberada no salão.',
+      })
+      return true
+    } catch (err: any) {
+      console.error('Erro ao fechar mesa sem consumo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao fechar mesa',
+        description: err.message || 'Falha ao comunicar com o servidor.',
+      })
+      return false
+    }
+  }
+
   // --- ESTOQUE ---
   // --- CRUD GERENCIAL DE PRODUTOS ---
   const createProduct = async (payload: SaveProductPayload): Promise<boolean> => {
@@ -1319,6 +1396,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         caixaAutorizarFecharConta,
         caixaRecusarAdiarConta,
         transferirMesa,
+        fecharMesaSemConsumo,
         updateStockItem,
         addStockSupply,
         addCashMovement,

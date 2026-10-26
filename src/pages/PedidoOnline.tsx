@@ -877,6 +877,7 @@ export default function PedidoOnline() {
         loadingMesas={loadingMesas}
         errorBanner={mesaBlockedError}
         atendimentoAtivo={atendimentoAtivo}
+        initialMesaParam={mesaParam > 0 ? mesaParam : undefined}
         onClearError={() => setMesaBlockedError(null)}
         onContinuarAtendimento={(num) => {
           setMesaBlockedError(null)

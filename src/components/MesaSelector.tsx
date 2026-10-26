@@ -36,6 +36,7 @@ interface MesaSelectorProps {
   errorBanner?: string | null
   onClearError?: () => void
   atendimentoAtivo?: AtendimentoAtivoLocal | null
+  initialMesaParam?: number
   onContinuarAtendimento?: (mesaNumero: number) => void
 }
 
@@ -43,13 +44,16 @@ export function MesaSelector({
   mesas,
   loadingMesas,
   onSelectMesa,
-  errorBanner,
+  errorBanner = null,
   onClearError,
   atendimentoAtivo: propAtendimentoAtivo,
+  initialMesaParam,
   onContinuarAtendimento,
 }: MesaSelectorProps) {
   const [showScanner, setShowScanner] = useState(false)
-  const [inputNumber, setInputNumber] = useState('')
+  const [inputNumber, setInputNumber] = useState(
+    initialMesaParam && initialMesaParam > 0 ? String(initialMesaParam) : '',
+  )
   const [localError, setLocalError] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<AtendimentoAtivoLocal | null>(
     propAtendimentoAtivo !== undefined ? propAtendimentoAtivo : AtendimentoStorage.get(),
@@ -73,6 +77,27 @@ export function MesaSelector({
       setActiveSession(propAtendimentoAtivo)
     }
   }, [propAtendimentoAtivo])
+
+  // Flag para disparar seleção automática por QR/parâmetro apenas uma vez
+  const autoSelectTriggeredRef = React.useRef(false)
+
+  // Quando o usuário abre /pedido?mesa=X (ou lê QR Code com a URL com parâmetro),
+  // preenche o campo de digitação e aciona imediatamente o fluxo correspondente:
+  // - Se já for a comanda aberta deste aparelho => continua o atendimento
+  // - Se for mesa livre => abre direto o modal pedindo o nome do cliente!
+  useEffect(() => {
+    if (
+      initialMesaParam &&
+      initialMesaParam > 0 &&
+      !loadingMesas &&
+      mesas.length > 0 &&
+      !autoSelectTriggeredRef.current
+    ) {
+      autoSelectTriggeredRef.current = true
+      setInputNumber(String(initialMesaParam))
+      attemptSelect(initialMesaParam)
+    }
+  }, [initialMesaParam, loadingMesas, mesas])
 
   // Verifica ao vivo no banco se a comanda/atendimento local ainda está aberto
   useEffect(() => {

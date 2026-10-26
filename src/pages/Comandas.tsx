@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Copy,
   AlertTriangle,
+  Ban,
   Settings as SettingsIcon,
   ArrowRightLeft,
 } from 'lucide-react'
@@ -52,6 +53,7 @@ export default function Comandas() {
     caixaAutorizarFecharConta,
     caixaRecusarAdiarConta,
     transferirMesa,
+    fecharMesaSemConsumo,
     settings,
   } = useBar()
 
@@ -95,6 +97,7 @@ export default function Comandas() {
   const [mesaDestinoSelecionada, setMesaDestinoSelecionada] = useState<number | null>(null)
   const [modalTransferirOpen, setModalTransferirOpen] = useState(false)
   const [isTransferindo, setIsTransferindo] = useState(false)
+  const [isLiberandoSemConsumo, setIsLiberandoSemConsumo] = useState(false)
 
   // Keep selectedTable updated with context changes
   const currentComanda = selectedTable
@@ -292,6 +295,36 @@ export default function Comandas() {
   const handleAbrirRecusa = (cmd: Comanda) => {
     setComandaParaRecusar(cmd)
     setModalRecusarOpen(true)
+  }
+
+  // Abrir modal de transferência de mesa
+  // Fechar mesa aberta sem consumo (Garçom, Caixa e Gerente)
+  const handleFecharMesaSemConsumo = async (cmd: Comanda) => {
+    if (!cmd) return
+
+    if (cmd.items && cmd.items.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Mesa possui consumo lançado',
+        description: `Esta mesa possui ${cmd.items.length} produto(s). Use o fluxo de pagamento para encerrar.`,
+      })
+      return
+    }
+
+    const confirmou = window.confirm(
+      `Deseja realmente fechar e liberar a Mesa ${cmd.tableNumber} sem consumo? A mesa voltará ao status Livre.`,
+    )
+    if (!confirmou) return
+
+    setIsLiberandoSemConsumo(true)
+    try {
+      const ok = await fecharMesaSemConsumo(cmd.tableNumber)
+      if (ok) {
+        setSelectedTable(null)
+      }
+    } finally {
+      setIsLiberandoSemConsumo(false)
+    }
   }
 
   // Abrir modal de transferência de mesa
@@ -993,7 +1026,32 @@ export default function Comandas() {
 
               {/* Action Buttons - Otimizado para telas estreitas com espaço de respiro inferior contra floating bars */}
               <div className="pt-2 border-t border-[#44403C]/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                  {/* Botão de Fechar Mesa Sem Consumo quando itens = 0 */}
+                  {currentComanda.items.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isLiberandoSemConsumo}
+                      onClick={() => handleFecharMesaSemConsumo(currentComanda)}
+                      className="bg-red-950/30 border-red-500/40 hover:bg-red-950/60 hover:border-red-500 text-red-300 hover:text-red-100 text-xs h-10 sm:h-9 flex items-center justify-center col-span-2 sm:col-auto"
+                      title="Encerra e libera a mesa de volta para status Livre sem cobrar nada"
+                    >
+                      {isLiberandoSemConsumo ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin flex-shrink-0" />
+                          <span>Liberando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-3.5 h-3.5 mr-1.5 text-red-400 flex-shrink-0" />
+                          <span>Fechar mesa sem consumo</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
                     variant="outline"

@@ -1233,6 +1233,31 @@ export const BarService = {
   },
 
   /**
+   * Fecha e libera uma mesa aberta sem consumo (0 itens lançados e total 0).
+   * Permitido para Garçom, Caixa e Gerente.
+   */
+  async fecharMesaSemConsumo(mesaNumero: number): Promise<{
+    sucesso: boolean
+    codigo?: string
+    mesa_numero?: number
+    comanda_id?: string
+    itens_count?: number
+    total?: number
+    mensagem: string
+  }> {
+    const { data, error } = await (db.rpc as any)('fechar_mesa_sem_consumo', {
+      p_mesa_numero: mesaNumero,
+    })
+
+    if (error) {
+      console.error('Erro ao chamar RPC fechar_mesa_sem_consumo:', error)
+      throw error
+    }
+
+    return data
+  },
+
+  /**
    * Transfere integralmente o atendimento de uma mesa para outra (Garçom, Caixa ou Gerente).
    * A comanda, todos os itens, totalização e status da conta são transferidos.
    * A mesa de origem é higienizada e marcada como Livre imediatamente.
