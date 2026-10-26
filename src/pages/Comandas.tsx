@@ -786,8 +786,8 @@ export default function Comandas() {
       {/* Modal: Detalhes da Comanda Aberta */}
       {currentComanda && (
         <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
-          <DialogContent className="w-[calc(100%-1rem)] sm:max-w-2xl bg-[#292524] border-[#44403C] text-stone-100 p-4 sm:p-6 max-h-[92dvh] overflow-y-auto pb-24 sm:pb-8">
-            <DialogHeader className="border-b border-[#44403C] pb-3 sm:pb-4 pr-6 sm:pr-0">
+          <DialogContent className="w-[calc(100%-1rem)] sm:max-w-3xl bg-[#292524] border-[#44403C] text-stone-100 p-3.5 sm:p-6 max-h-[92dvh] overflow-y-auto pb-8">
+            <DialogHeader className="border-b border-[#44403C] pb-3 sm:pb-4 pr-7 sm:pr-8">
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="text-lg sm:text-xl font-black text-stone-100 flex items-center gap-2 flex-wrap">
@@ -918,23 +918,23 @@ export default function Comandas() {
                   className="bg-[#292524] border-[#44403C] text-xs text-stone-100 h-9"
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 max-h-48 overflow-y-auto">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 pt-1 max-h-64 sm:max-h-56 overflow-y-auto pr-0.5">
                   {filteredMenuItems.map((prod) => (
                     <button
                       key={prod.id}
                       type="button"
                       disabled={prod.stock <= 0}
                       onClick={() => addItemToComanda(currentComanda.tableNumber, prod, 1)}
-                      className="p-2.5 rounded-lg bg-[#292524] hover:bg-[#44403C] border border-[#44403C] hover:border-amber-500/50 text-left transition-colors flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed group"
+                      className="p-3 rounded-xl bg-[#292524] hover:bg-[#383330] border border-[#44403C] hover:border-amber-500/50 text-left transition-all flex flex-col justify-between min-h-[76px] sm:min-h-[82px] disabled:opacity-40 disabled:cursor-not-allowed group active:scale-[0.98]"
                     >
-                      <span className="font-semibold text-xs text-stone-200 line-clamp-1 group-hover:text-amber-400">
+                      <span className="font-semibold text-xs sm:text-[13px] text-stone-200 group-hover:text-amber-400 leading-snug break-words">
                         {prod.name}
                       </span>
-                      <div className="flex items-center justify-between mt-1.5 text-[11px]">
-                        <span className="text-amber-500 font-bold tabular-nums">
+                      <div className="flex items-end justify-between gap-1.5 mt-2 text-[11px] sm:text-xs">
+                        <span className="text-amber-400 font-extrabold tabular-nums whitespace-nowrap">
                           R$ {prod.price.toFixed(2)}
                         </span>
-                        <span className="text-[10px] text-stone-400 font-medium">
+                        <span className="text-[10px] sm:text-[11px] text-stone-400 font-medium whitespace-nowrap text-right">
                           {prod.stock} {prod.unit}
                         </span>
                       </div>
@@ -1024,9 +1024,9 @@ export default function Comandas() {
                 </div>
               </div>
 
-              {/* Action Buttons - Otimizado para telas estreitas com espaço de respiro inferior contra floating bars */}
-              <div className="pt-2 border-t border-[#44403C]/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+              {/* Action Buttons - Totalmente responsivo sem corte nem rolagem horizontal */}
+              <div className="pt-3 border-t border-[#44403C]/60 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-stretch sm:items-center gap-2 flex-1">
                   {/* Botão de Fechar Mesa Sem Consumo quando itens = 0 */}
                   {currentComanda.items.length === 0 && (
                     <Button
@@ -1035,17 +1035,17 @@ export default function Comandas() {
                       size="sm"
                       disabled={isLiberandoSemConsumo}
                       onClick={() => handleFecharMesaSemConsumo(currentComanda)}
-                      className="bg-red-950/30 border-red-500/40 hover:bg-red-950/60 hover:border-red-500 text-red-300 hover:text-red-100 text-xs h-10 sm:h-9 flex items-center justify-center col-span-2 sm:col-auto"
+                      className="bg-red-950/30 border-red-500/40 hover:bg-red-950/60 hover:border-red-500 text-red-300 hover:text-red-100 text-xs h-10 sm:h-9.5 px-3 flex-1 sm:flex-initial flex items-center justify-center whitespace-normal text-center min-w-[140px]"
                       title="Encerra e libera a mesa de volta para status Livre sem cobrar nada"
                     >
                       {isLiberandoSemConsumo ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin flex-shrink-0" />
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin shrink-0" />
                           <span>Liberando...</span>
                         </>
                       ) : (
                         <>
-                          <Ban className="w-3.5 h-3.5 mr-1.5 text-red-400 flex-shrink-0" />
+                          <Ban className="w-3.5 h-3.5 mr-1.5 text-red-400 shrink-0" />
                           <span>Fechar mesa sem consumo</span>
                         </>
                       )}
@@ -1081,9 +1081,9 @@ export default function Comandas() {
                         })
                       }
                     }}
-                    className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:text-white text-xs h-10 sm:h-9 flex items-center justify-center"
+                    className="bg-[#1C1917] border-[#44403C] hover:border-amber-500/40 text-stone-200 hover:text-white text-xs h-10 sm:h-9.5 px-3 flex-1 sm:flex-initial flex items-center justify-center whitespace-nowrap"
                   >
-                    <Printer className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
+                    <Printer className="w-3.5 h-3.5 mr-1.5 text-amber-500 shrink-0" />
                     <span>Imprimir Conta</span>
                   </Button>
 
@@ -1092,9 +1092,9 @@ export default function Comandas() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleAbrirTransferencia(currentComanda)}
-                    className="bg-[#1C1917] border-[#44403C] hover:border-amber-500/50 text-stone-200 hover:text-amber-400 text-xs h-10 sm:h-9 flex items-center justify-center"
+                    className="bg-[#1C1917] border-[#44403C] hover:border-amber-500/50 text-stone-200 hover:text-amber-400 text-xs h-10 sm:h-9.5 px-3 flex-1 sm:flex-initial flex items-center justify-center whitespace-nowrap"
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5 text-amber-500 flex-shrink-0" />
+                    <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5 text-amber-500 shrink-0" />
                     <span>Transferir Mesa</span>
                   </Button>
                 </div>
@@ -1102,9 +1102,9 @@ export default function Comandas() {
                 <Button
                   type="button"
                   onClick={handleOpenPaymentFlow}
-                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs sm:text-sm h-11 sm:h-9 px-5 shadow-lg shadow-amber-950/40 w-full sm:w-auto flex items-center justify-center"
+                  className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs sm:text-sm h-11 sm:h-10 px-5 shadow-lg shadow-amber-950/40 w-full md:w-auto shrink-0 flex items-center justify-center whitespace-nowrap"
                 >
-                  <CreditCard className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <CreditCard className="w-4 h-4 mr-2 shrink-0" />
                   <span>Enviar para Pagamento</span>
                 </Button>
               </div>
