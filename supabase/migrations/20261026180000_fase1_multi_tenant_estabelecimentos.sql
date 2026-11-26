@@ -44,16 +44,55 @@ create policy estabelecimentos_delete_gerente on public.estabelecimentos
 -- 2. Seed do Rachide Bar (primeiro tenant / piloto)
 -- ----------------------------------------------------------------------------
 insert into public.estabelecimentos (id, nome, cnpj)
-values (
-  '11111111-1111-1111-1111-111111111111',
-  'Rachide Bar',
-  (select cnpj from public.configuracoes_bar where id = 'principal')
-)
+values ('11111111-1111-1111-1111-111111111111', 'Rachide Bar', null)
 on conflict (id) do nothing;
+
+-- Copia o CNPJ das configurações existentes, se a coluna existir (tolerante a schema)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'configuracoes_bar' and column_name = 'cnpj'
+  ) then
+    update public.estabelecimentos
+    set cnpj = (select cnpj from public.configuracoes_bar where id = 'principal')
+    where id = '11111111-1111-1111-1111-111111111111' and cnpj is null;
+  end if;
+end $$;
+
+/*
+-- 9.6/9.7 CORREÇÃO 42P13: o PostgreSQL não permite CREATE OR REPLACE que remova
+-- parâmetros padrão de função existente. Derrubar ANTES as duas assinaturas
+-- (2 params e 3 params, a atual em produção com p_deseja_nfce) e recriar em seguida.
+drop function if exists public.solicitar_conta_mesa(integer, text);
+drop function if exists public.solicitar_conta_mesa(integer, text, boolean);
+grant execute on function public.solicitar_conta_mesa(integer, text) to anon, authenticated;
+grant execute on function public.solicitar_conta_mesa(integer, text, boolean) to anon, authenticated;
+
+-- 9.6 Solicitar conta (sem NFC-e)
+create or replace function public.solicitar_conta_mesa(p_mesa_numero integer, p_forma_pagamento text)
+
+-- ----------------------------------------------------------------------------
+-- 3. Helper: estabelecimento do usuário logado (claim do JWT)
+=======
+-- ----------------------------------------------------------------------------
+-- 3. Helper: estabelecimento do usuário logado (claim do JWT)
+=======
+-- 9.6/9.7 CORREÇÃO 42P13: o PostgreSQL não permite CREATE OR REPLACE que remova
+-- parâmetros padrão de função existente. Derrubar ANTES as duas assinaturas
+-- (2 params e 3 params, a atual em produção com p_deseja_nfce) e recriar em seguida.
+drop function if exists public.solicitar_conta_mesa(integer, text);
+drop function if exists public.solicitar_conta_mesa(integer, text, boolean);
+grant execute on function public.solicitar_conta_mesa(integer, text) to anon, authenticated;
+grant execute on function public.solicitar_conta_mesa(integer, text, boolean) to anon, authenticated;
+
+-- 9.6 Solicitar conta (sem NFC-e)
+create or replace function public.solicitar_conta_mesa(p_mesa_numero integer, p_forma_pagamento text)
 
 -- ----------------------------------------------------------------------------
 -- 3. Helper: estabelecimento do usuário logado (claim do JWT)
 -- ----------------------------------------------------------------------------
+*/
 create or replace function public.estabelecimento_atual()
 returns uuid
 language plpgsql
@@ -82,15 +121,30 @@ begin
     v_claims ->> 'estabelecimento_id'
   );
 
-  if v_txt is null or v_txt = '' then
-    return null;
+  if v_txt is not null and v_txt <> '' then
+    begin
+      v_id := v_txt::uuid;
+    exception when others then
+      v_id := null;
+    end;
+    if v_id is not null then
+      return v_id;
+    end if;
   end if;
 
-  begin
-    v_id := v_txt::uuid;
-  exception when others then
-    v_id := null;
-  end;
+  -- Fase 1: fallback pelo perfil do usuário logado (perfis_usuarios.tenant_id).
+  -- Evita depender de auth hook para injetar claim no JWT; o tenant do usuário
+  -- é o valor semeado na migração (Rachide Bar = 11111111-...).
+  if coalesce(current_setting('request.jwt.claim.role', true), auth.role()) = 'authenticated' then
+    begin
+      select tenant_id into v_id
+      from public.perfis_usuarios
+      where id = auth.uid() and ativo = true
+      limit 1;
+    exception when others then
+      v_id := null;
+    end;
+  end if;
 
   return v_id;
 end;
@@ -771,8 +825,7 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM public.mesas WHERE numero = v_mesa_num) THEN
     INSERT INTO public.mesas (numero, status, capacidade)
-    VALUES (v_mesa_num, 'Ocupada', 4)
-    ON CONFLICT (numero) DO UPDATE SET status = 'Ocupada', updated_at = v_now;
+    VALUES (v_mesa_num, 'Ocupada', 4);
   ELSE
     UPDATE public.mesas
     SET status = 'Ocupada', updated_at = v_now
@@ -852,7 +905,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.mesas WHERE numero = v_mesa_num) THEN
     INSERT INTO public.mesas (numero, status, capacidade)
     VALUES (v_mesa_num, 'Livre', 4)
-    ON CONFLICT (numero) DO NOTHING;
+    ON CONFLICT DO NOTHING;
   END IF;
 
   v_comanda_id := 'cmd-' || LPAD(v_mesa_num::text, 2, '0');
@@ -935,6 +988,11 @@ BEGIN
   );
 END;
 $$;
+
+-- CORREÇÃO 42P13: derruba as assinaturas existentes antes de recriar
+-- (CREATE OR REPLACE não pode remover parâmetros padrão de função existente).
+drop function if exists public.solicitar_conta_mesa(integer, text);
+drop function if exists public.solicitar_conta_mesa(integer, text, boolean);
 
 -- 9.6 Solicitar conta (sem NFC-e)
 create or replace function public.solicitar_conta_mesa(p_mesa_numero integer, p_forma_pagamento text)
@@ -1044,7 +1102,7 @@ END;
 $$;
 
 -- 9.7 Solicitar conta (com NFC-e)
-create or replace function public.solicitar_conta_mesa(p_mesa_numero integer, p_forma_pagamento text, p_deseja_nfce boolean)
+create or replace function public.solicitar_conta_mesa(p_mesa_numero integer, p_forma_pagamento text, p_deseja_nfce boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1152,6 +1210,9 @@ BEGIN
   );
 END;
 $$;
+
+grant execute on function public.solicitar_conta_mesa(integer, text) to anon, authenticated;
+grant execute on function public.solicitar_conta_mesa(integer, text, boolean) to anon, authenticated;
 
 -- 9.8 Caixa: autorizar/fechar conta
 create or replace function public.caixa_autorizar_fechar_conta(p_mesa_numero integer, p_forma_pagamento text, p_valor_pago numeric, p_marcar_em_processamento_pix boolean default false)

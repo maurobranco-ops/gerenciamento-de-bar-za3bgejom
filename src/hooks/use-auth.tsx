@@ -89,22 +89,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // alimenta o seletor da tela de login (tabela liberada em SELECT para anon).
   const fetchEstabelecimentos = async (authenticated: boolean) => {
     try {
-      let query = (supabase as any).from('estabelecimentos').select('*').eq('ativo', true)
-      if (authenticated) {
-        query = query.in('id', (supabase as any).from('estabelecimentos').select('id') as any)
-      }
-      const { data, error } = await query.order('nome', { ascending: true })
-      if (!error && data && data.length > 0) {
-        setEstabelecimentos(data as Estabelecimento[])
-        return
-      }
-      // Fallback: lista pública de tenants ativos (funciona no login e logado)
-      const { data: pub, error: pubErr } = await (supabase as any)
+      // Fase 1: a tabela estabelecimentos é pública em SELECT para ativos
+      // (policy estabelecimentos_select_public) — mesma consulta no login e logado.
+      const { data, error } = await (supabase as any)
         .from('estabelecimentos')
         .select('*')
         .eq('ativo', true)
         .order('nome', { ascending: true })
-      if (!pubErr && pub) setEstabelecimentos(pub as Estabelecimento[])
+      if (!error && data) setEstabelecimentos(data as Estabelecimento[])
     } catch (err) {
       console.error('Erro ao buscar estabelecimentos:', err)
     }
