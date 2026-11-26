@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { UserRole } from '@/types/bar'
+import { Estabelecimento } from '@/types/tenant'
+import { TenantStorage } from '@/lib/tenantStorage'
 
 export interface UserProfile {
   id: string
@@ -17,6 +19,9 @@ interface AuthContextType {
   profile: UserProfile | null
   role: UserRole
   loading: boolean
+  estabelecimentos: Estabelecimento[]
+  estabelecimentoAtivo: Estabelecimento | null
+  setEstabelecimentoAtivo: (e: Estabelecimento | null) => void
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signUp: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<{ error: any }>
@@ -43,6 +48,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [estabelecimentos, setEstabelecimentos] = useState<Estabelecimento[]>([])
+  const [estabelecimentoAtivo, setEstabelecimentoAtivoState] = useState<Estabelecimento | null>(
+    () => {
+      return TenantStorage.get()
+    },
+  )
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -70,6 +81,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) {
       console.error('Erro ao buscar perfil do usuário:', err)
       setProfile(null)
+    }
+  }
+
+  // Fase 1 multi-tenant: lista de estabelecimentos disponíveis na sessão.
+  // Enquanto o usuário não está autenticado, a lista pública de tenants ativos
+  // alimenta o seletor da tela de login (tabela liberada em SELECT para anon).
+  const fetchEstabelecimentos = async (authenticated: boolean) => {
+    try {
+      let query = (supabase as any).from('estabelecimentos').select('*').eq('ativo', true)
+      if (authenticated) {
+        query = query.in('id', (supabase as any).from('estabelecimentos').select('id') as any)
+      }
+      const { data, error } = await query.order('nome', { ascending: true })
+      if (!error && data && data.length > 0) {
+        setEstabelecimentos(data as Estabelecimento[])
+        return
+      }
+      // Fallback: lista pública de tenants ativos (funciona no login e logado)
+      const { data: pub, error: pubErr } = await (supabase as any)
+        .from('estabelecimentos')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome', { ascending: true })
+      if (!pubErr && pub) setEstabelecimentos(pub as Estabelecimento[])
+    } catch (err) {
+      console.error('Erro ao buscar estabelecimentos:', err)
     }
   }
 
@@ -102,10 +139,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Carrega estabelecimentos uma vez na inicialização (login precisa da lista)
+  useEffect(() => {
+    fetchEstabelecimentos(!!user)
+  }, [user])
+
+  // Se um estabelecimento estava salvo e some da lista, limpa; se não há seleção,
+  // adota o primeiro disponível (Fase 1: Rachide Bar é o único tenant real).
+  useEffect(() => {
+    if (estabelecimentos.length === 0) return
+    const saved = TenantStorage.get()
+    if (saved && estabelecimentos.some((e) => e.id === saved.id)) {
+      if (estabelecimentoAtivo?.id !== saved.id) setEstabelecimentoAtivoState(saved)
+      return
+    }
+    if (!estabelecimentoAtivo) {
+      setEstabelecimentoAtivoState(estabelecimentos[0])
+      TenantStorage.set(estabelecimentos[0])
+    }
+  }, [estabelecimentos])
+
+  const setEstabelecimentoAtivo = (e: Estabelecimento | null) => {
+    setEstabelecimentoAtivoState(e)
+    if (e) TenantStorage.set(e)
+    else TenantStorage.clear()
+  }
+
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (!error && data?.user) {
       await fetchProfile(data.user.id)
+      await fetchEstabelecimentos(true)
     }
     return { error }
   }
@@ -151,6 +215,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile,
         role,
         loading,
+        estabelecimentos,
+        estabelecimentoAtivo,
+        setEstabelecimentoAtivo,
         signIn,
         signUp,
         signOut,

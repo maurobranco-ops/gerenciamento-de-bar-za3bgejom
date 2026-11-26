@@ -1,14 +1,27 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Beer, Lock, Mail, Loader2, ArrowRight, AlertCircle } from 'lucide-react'
+import { Beer, Lock, Mail, Loader2, ArrowRight, AlertCircle, Store } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export default function Login() {
-  const { signIn, loading: authLoading } = useAuth()
+  const {
+    signIn,
+    loading: authLoading,
+    estabelecimentos,
+    estabelecimentoAtivo,
+    setEstabelecimentoAtivo,
+  } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -103,6 +116,41 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Fase 1 multi-tenant: seleção do estabelecimento (tenant) antes das credenciais */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-stone-300 font-semibold">Estabelecimento</Label>
+              <div className="relative">
+                <Store className="w-4 h-4 absolute left-3 top-3 z-10 text-stone-500" />
+                <Select
+                  value={estabelecimentoAtivo?.id ?? ''}
+                  onValueChange={(v) => {
+                    const found = estabelecimentos.find((e) => e.id === v)
+                    if (found) setEstabelecimentoAtivo(found)
+                  }}
+                >
+                  <SelectTrigger
+                    id="estabelecimento-login"
+                    aria-label="Selecionar estabelecimento"
+                    className="w-full pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
+                  >
+                    <SelectValue placeholder="Selecione o estabelecimento" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#292524] border-[#44403C] text-stone-100">
+                    {estabelecimentos.map((e) => (
+                      <SelectItem key={e.id} value={e.id} className="focus:bg-stone-700">
+                        {e.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {estabelecimentos.length === 0 && (
+                <p className="text-[10px] text-stone-500">
+                  Nenhum estabelecimento disponível no momento.
+                </p>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs text-stone-300 font-semibold">E-mail corporativo</Label>
               <div className="relative">
