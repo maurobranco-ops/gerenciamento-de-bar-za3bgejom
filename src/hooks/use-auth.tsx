@@ -80,7 +80,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!error && data) {
         setProfile(data as unknown as UserProfile)
       } else {
-        // Fallback default profile if table row is absent
+        // Linha ausente (cadastro incompleto) ou bloqueada por RLS — visível
+        // no console para diagnóstico do pós-login (ex.: admin sem tenant).
+        console.error('[useAuth] Perfil não carregado para', userId, error?.message)
         setProfile(null)
       }
     } catch (err) {

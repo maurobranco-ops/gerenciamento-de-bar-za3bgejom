@@ -50,17 +50,27 @@ export default function Login() {
       // Redireciona conforme o perfil do usuário autenticado
       const supabase = (await import('@/lib/supabase/client')).supabase
       const { data: userData } = await supabase.auth.getUser()
-      const { data: perfil } = await supabase
+      const { data: perfil, error: perfilError } = await supabase
         .from('perfis_usuarios')
         .select('perfil')
         .eq('id', userData?.user?.id ?? '')
         .maybeSingle()
 
+      // Perfil ausente (RLS, cadastro incompleto ou usuário desativado) é um
+      // erro visível — nunca assumir silenciosamente o papel Garçom.
+      if (perfilError || !perfil) {
+        setError(
+          'Perfil não encontrado — contate o administrador da plataforma para verificar seu cadastro.',
+        )
+        await supabase.auth.signOut()
+        return
+      }
+
       let role = 'Garçom'
-      if (perfil?.perfil === 'gerente') role = 'Gerente'
-      else if (perfil?.perfil === 'caixa') role = 'Caixa'
-      else if (perfil?.perfil === 'cozinha') role = 'Cozinha'
-      else if (perfil?.perfil === 'admin') role = 'Admin'
+      if (perfil.perfil === 'gerente') role = 'Gerente'
+      else if (perfil.perfil === 'caixa') role = 'Caixa'
+      else if (perfil.perfil === 'cozinha') role = 'Cozinha'
+      else if (perfil.perfil === 'admin') role = 'Admin'
 
       const from = (location.state as any)?.from?.pathname
       const destination = getDestinationForRole(role, from)
