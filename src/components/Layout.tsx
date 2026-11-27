@@ -24,6 +24,7 @@ import {
   Presentation,
   FileCode2,
   Tv,
+  ShieldCheck,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { useAuth } from '../hooks/use-auth'
@@ -150,12 +151,19 @@ const NAV_ITEMS: NavItem[] = [
     icon: Settings,
     roles: ['Gerente'],
   },
+  {
+    title: 'Administração',
+    path: '/admin',
+    icon: ShieldCheck,
+    roles: ['Admin'],
+  },
 ]
 
 export default function Layout() {
   const barContext = useBar()
   const { user, profile, signOut } = useAuth()
   const { role, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } = barContext
+  const estabelecimentoNome = barContext.settings?.nomeFantasia || 'Estabelecimento'
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -178,13 +186,17 @@ export default function Layout() {
 
   // Dynamic screen title based on current path
   const currentNav = NAV_ITEMS.find((item) => item.path === location.pathname)
-  const currentTitle = currentNav?.title || 'Rachide Bar'
+  const currentTitle = currentNav?.title || 'Início'
 
-  // Filter items by role: para o perfil Cozinha, esconde todos os itens bloqueados da sidebar e exibe somente a Fila Cozinha & Bar
+  // Filter items by role: para o perfil Cozinha, esconde todos os itens bloqueados da sidebar e exibe somente a Fila Cozinha & Bar.
+  // O admin da plataforma vê apenas o item Administração (nunca o contexto operacional do tenant).
   const isCozinhaRole = role === 'Cozinha'
-  const sidebarNavItems = isCozinhaRole
-    ? NAV_ITEMS.filter((item) => item.roles.includes('Cozinha'))
-    : NAV_ITEMS
+  const isAdminRole = role === 'Admin'
+  const sidebarNavItems = isAdminRole
+    ? NAV_ITEMS.filter((item) => item.roles.includes('Admin'))
+    : isCozinhaRole
+      ? NAV_ITEMS.filter((item) => item.roles.includes('Cozinha'))
+      : NAV_ITEMS
   const visibleNavItems = NAV_ITEMS.filter((item) => item.roles.includes(role))
 
   // Search filtered products
@@ -211,9 +223,9 @@ export default function Layout() {
   React.useEffect(() => {
     const totalPending = pendingKitchenCount
     if (totalPending > 0) {
-      document.title = `(${totalPending}) Rachide Bar • Fila Ativa`
+      document.title = `(${totalPending}) Bares e Restaurantes • Fila Ativa`
     } else {
-      document.title = 'Rachide Bar — Gestão Gastronômica'
+      document.title = 'Bares e Restaurantes — Gestão Gastronômica'
     }
   }, [pendingKitchenCount])
 
@@ -247,7 +259,7 @@ export default function Layout() {
               <Beer className="w-5 h-5 fill-current" />
             </div>
             <span className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100">
-              Rachide <span className="text-amber-500">Bar</span>
+              Bares e <span className="text-amber-500">Restaurantes</span>
             </span>
           </div>
 
@@ -256,6 +268,13 @@ export default function Layout() {
           <h1 className="text-base sm:text-lg font-bold text-stone-200 capitalize">
             {currentTitle}
           </h1>
+          {/* Nome do tenant logado — só no contexto operacional pós-login */}
+          {role !== 'Admin' && estabelecimentoNome !== 'Estabelecimento' && (
+            <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-semibold text-amber-400 truncate max-w-[220px]">
+              <Building2 className="w-3 h-3 flex-shrink-0" />
+              {estabelecimentoNome}
+            </span>
+          )}
         </div>
 
         {/* Header Right Actions */}
@@ -479,6 +498,14 @@ export default function Layout() {
                 <div className="text-[11px] text-stone-400 truncate mt-1">
                   {profile?.nome_exibicao || user?.email || 'Autenticado'}
                 </div>
+                {role !== 'Admin' && (
+                  <div
+                    className="text-[10px] text-stone-500 truncate mt-1"
+                    title={estabelecimentoNome}
+                  >
+                    {estabelecimentoNome}
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -582,32 +609,35 @@ export default function Layout() {
 
       {/* Mobile Bottom Navigation Bar (< 768px) with safe area */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#292524]/95 backdrop-blur-md border-t border-[#44403C] z-30 flex items-center justify-around px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        {visibleNavItems.slice(0, 5).map((item) => {
-          const Icon = item.icon
-          const isActive = location.pathname === item.path
-          const count = item.badgeCount ? item.badgeCount(barContext) : 0
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={`relative flex flex-col items-center justify-center flex-1 py-1.5 text-[10px] font-medium transition-colors ${
-                isActive ? 'text-amber-500 font-bold' : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <div className="relative">
-                <Icon className="w-5 h-5 mb-0.5" />
-                {count > 0 && (
-                  <span className="absolute -top-1 -right-2 px-1 py-0.2 text-[9px] font-extrabold rounded-full bg-amber-500 text-stone-950 min-w-[14px] text-center">
-                    {count}
-                  </span>
-                )}
-              </div>
-              <span className="truncate max-w-[64px] text-center leading-tight">
-                {item.title.split(' ')[0]}
-              </span>
-            </NavLink>
-          )
-        })}
+        {visibleNavItems
+          .filter((item) => item.path !== '/admin')
+          .slice(0, 5)
+          .map((item) => {
+            const Icon = item.icon
+            const isActive = location.pathname === item.path
+            const count = item.badgeCount ? item.badgeCount(barContext) : 0
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`relative flex flex-col items-center justify-center flex-1 py-1.5 text-[10px] font-medium transition-colors ${
+                  isActive ? 'text-amber-500 font-bold' : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className="w-5 h-5 mb-0.5" />
+                  {count > 0 && (
+                    <span className="absolute -top-1 -right-2 px-1 py-0.2 text-[9px] font-extrabold rounded-full bg-amber-500 text-stone-950 min-w-[14px] text-center">
+                      {count}
+                    </span>
+                  )}
+                </div>
+                <span className="truncate max-w-[64px] text-center leading-tight">
+                  {item.title.split(' ')[0]}
+                </span>
+              </NavLink>
+            )
+          })}
       </nav>
 
       {/* Footer */}
@@ -618,8 +648,8 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Rachide Bar v1.5.0 — Gestão Gastronômica, KDS Kanban de Cozinha, Acompanhamento ao Vivo
-            & Pedidos On-line
+            Bares e Restaurantes v0.0.42 — Plataforma multi-tenant de gestão para bares e
+            restaurantes
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -634,7 +664,7 @@ export default function Layout() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-stone-100">
               <Search className="w-5 h-5 text-amber-500" />
-              Busca Global de Produtos do Rachide Bar
+              Busca Global de Produtos do Estabelecimento
             </DialogTitle>
           </DialogHeader>
 

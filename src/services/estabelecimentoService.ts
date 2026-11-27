@@ -119,4 +119,67 @@ export const EstabelecimentoService = {
       throw error
     }
   },
+
+  // ===== Administração da PLATAFORMA (perfil 'admin') =====
+  // RPCs com verificação de perfil admin no banco — ignoram o escopo por tenant.
+
+  /** Lista TODOS os estabelecimentos (ativos e inativos) de todos os tenants */
+  async adminListar(): Promise<EstabelecimentoComContagens[]> {
+    const { data, error } = await db.rpc('admin_listar_estabelecimentos')
+    if (error) {
+      console.error('Erro ao listar estabelecimentos (admin):', error)
+      throw error
+    }
+    return (data || []) as EstabelecimentoComContagens[]
+  },
+
+  /** Cria novo estabelecimento (nasce ativo, com mesas e configurações padrão) */
+  async adminCriar(params: {
+    nome: string
+    cnpj: string
+    endereco: string
+    quantidade_mesas: number
+  }): Promise<{ id: string; qtd_mesas: number; mensagem: string }> {
+    const { data, error } = await db.rpc('admin_criar_estabelecimento', {
+      p_nome: params.nome,
+      p_cnpj: params.cnpj,
+      p_endereco: params.endereco,
+      p_qtd_mesas: params.quantidade_mesas,
+    })
+    if (error) {
+      console.error('Erro ao criar estabelecimento (admin):', error)
+      throw error
+    }
+    return data
+  },
+
+  /** Edita dados cadastrais do estabelecimento */
+  async adminEditar(
+    id: string,
+    dados: { nome: string; cnpj: string; endereco: string; quantidade_mesas: number },
+  ): Promise<void> {
+    const { error } = await db.rpc('admin_atualizar_estabelecimento', {
+      p_id: id,
+      p_nome: dados.nome,
+      p_cnpj: dados.cnpj,
+      p_endereco: dados.endereco,
+      p_quantidade_mesas: dados.quantidade_mesas,
+    })
+    if (error) {
+      console.error('Erro ao editar estabelecimento (admin):', error)
+      throw error
+    }
+  },
+
+  /** Ativa/desativa (desativado some do seletor do login) */
+  async adminAtivarDesativar(id: string, ativo: boolean): Promise<void> {
+    const { error } = await db.rpc('admin_atualizar_estabelecimento', {
+      p_id: id,
+      p_ativo: ativo,
+    })
+    if (error) {
+      console.error('Erro ao ativar/desativar estabelecimento (admin):', error)
+      throw error
+    }
+  },
 }

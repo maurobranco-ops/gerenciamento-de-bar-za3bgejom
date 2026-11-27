@@ -9,8 +9,9 @@ export interface UserProfile {
   id: string
   email: string
   nome_exibicao: string
-  perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha'
+  perfil: 'garcom' | 'caixa' | 'gerente' | 'cozinha' | 'admin'
   ativo: boolean
+  tenant_id: string | null
 }
 
 interface AuthContextType {
@@ -18,6 +19,7 @@ interface AuthContextType {
   session: Session | null
   profile: UserProfile | null
   role: UserRole
+  isAdmin: boolean
   loading: boolean
   estabelecimentos: Estabelecimento[]
   estabelecimentoAtivo: Estabelecimento | null
@@ -36,7 +38,10 @@ export const useAuth = () => {
   return context
 }
 
+// 'admin' é o administrador da PLATAFORMA (não de um estabelecimento):
+// mapeado para o papel reservado 'Admin' — só tem acesso à /admin
 const mapPerfilToRole = (perfil?: string | null): UserRole => {
+  if (perfil === 'admin') return 'Admin'
   if (perfil === 'gerente') return 'Gerente'
   if (perfil === 'caixa') return 'Caixa'
   if (perfil === 'cozinha') return 'Cozinha'
@@ -137,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user])
 
   // Se um estabelecimento estava salvo e some da lista, limpa; se não há seleção,
-  // adota o primeiro disponível (Fase 1: Rachide Bar é o único tenant real).
+  // adota o primeiro disponível.
   useEffect(() => {
     if (estabelecimentos.length === 0) return
     const saved = TenantStorage.get()
@@ -198,6 +203,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const role: UserRole = mapPerfilToRole(profile?.perfil)
+  const isAdmin = role === 'Admin'
 
   return (
     <AuthContext.Provider
@@ -206,6 +212,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         profile,
         role,
+        isAdmin,
         loading,
         estabelecimentos,
         estabelecimentoAtivo,

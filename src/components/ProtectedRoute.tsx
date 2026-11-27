@@ -1,31 +1,44 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import { Loader2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
-export function ProtectedRoute() {
-  const { session, loading, role } = useAuth()
+interface ProtectedRouteProps {
+  children: React.ReactNode
+  /** Perfis (em formato UserRole) com permissão; se omitido, qualquer autenticado entra */
+  allowedRoles?: string[]
+}
+
+export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+  const { user, profile, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1C1917] flex flex-col items-center justify-center text-stone-200">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-3" />
-        <span className="text-xs text-stone-400">Verificando sessão segura...</span>
+      <div className="min-h-dvh bg-[#1C1917] flex items-center justify-center">
+        <div className="w-full max-w-sm space-y-3 p-4">
+          <Skeleton className="h-9 w-2/3 bg-[#292524]" />
+          <Skeleton className="h-4 w-1/2 bg-[#292524]" />
+          <Skeleton className="h-32 w-full bg-[#292524]" />
+        </div>
       </div>
     )
   }
 
-  if (!session) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />
+
+  if (allowedRoles && allowedRoles.length > 0) {
+    const roleMapping: Record<string, string> = {
+      Garçom: 'garcom',
+      Caixa: 'caixa',
+      Gerente: 'gerente',
+      Cozinha: 'cozinha',
+      Admin: 'admin',
+    }
+    const allowedProfiles = allowedRoles.map((r) => roleMapping[r] ?? r)
+    if (profile && !allowedProfiles.includes(profile.perfil)) {
+      return <Navigate to="/" replace />
+    }
   }
 
-  // Se o usuário possui perfil Cozinha, seu acesso é EXCLUSIVO à tela Fila Cozinha & Bar (/fila-cozinha)
-  // Caso tente acessar qualquer outra rota protegida, redireciona diretamente para /fila-cozinha
-  if (role === 'Cozinha' && location.pathname !== '/fila-cozinha') {
-    return <Navigate to="/fila-cozinha" replace />
-  }
-
-  // Se o usuário possui perfil Garçom/Caixa/Gerente e porventura estiver na raiz ou outra tela, segue normal
-
-  return <Outlet />
+  return <>{children}</>
 }

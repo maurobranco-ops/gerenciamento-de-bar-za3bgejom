@@ -1,11 +1,9 @@
-import React, { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Beer, Lock, Mail, Loader2, ArrowRight, AlertCircle, Store } from 'lucide-react'
-import { useAuth } from '@/hooks/use-auth'
-import { Button } from '@/components/ui/button'
+import { Beer, Mail, Lock, Loader2, ArrowRight, Building2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -13,200 +11,184 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Login() {
-  const {
-    signIn,
-    loading: authLoading,
-    estabelecimentos,
-    estabelecimentoAtivo,
-    setEstabelecimentoAtivo,
-  } = useAuth()
+  const { signIn, estabelecimentos, estabelecimentoAtivo, setEstabelecimentoAtivo } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const { session, role } = useAuth()
-  const from = (location.state as any)?.from?.pathname
-
-  // Determina rota padrão de destino conforme perfil: Cozinha vai direto para /fila-cozinha
-  const targetDestination = React.useMemo(() => {
+  // Pós-login: Cozinha vai exclusivo para a fila; o admin da plataforma vai
+  // direto para /admin; demais seguem para o destino guardado (ou o Dashboard).
+  const getDestinationForRole = (role: string, from?: string): string => {
     if (role === 'Cozinha') return '/fila-cozinha'
-    if (from && from !== '/login') {
-      return from === '/kds' ? '/fila-cozinha' : from
-    }
-    return '/'
-  }, [role, from])
+    if (role === 'Admin') return '/admin'
+    return from && from !== '/login' ? from : '/'
+  }
 
-  // Se o usuário já estiver autenticado e acessar /login, redirecionar para a tela pretendida
-  React.useEffect(() => {
-    if (!authLoading && session) {
-      // Se for Cozinha ou se targetDestination for /kds, vai direto para /fila-cozinha
-      const dest =
-        role === 'Cozinha' || targetDestination === '/kds' ? '/fila-cozinha' : targetDestination
-      navigate(dest, { replace: true })
-    }
-  }, [authLoading, session, navigate, targetDestination, role])
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMessage(null)
+    setError(null)
     setSubmitting(true)
 
     try {
-      const { error } = await signIn(email.trim(), password)
+      const { error } = await signIn(email, password)
       if (error) {
-        if (error.message?.includes('Invalid login credentials')) {
-          setErrorMessage('E-mail ou senha incorretos. Verifique suas credenciais.')
-        } else {
-          setErrorMessage(error.message || 'Erro ao efetuar login. Tente novamente.')
-        }
-      } else {
-        // Redirecionamento após login bem sucedido: se for Cozinha, cai direto em /fila-cozinha
-        const isKitchen = email.trim().toLowerCase().includes('cozinha')
-        navigate(isKitchen ? '/fila-cozinha' : targetDestination, { replace: true })
+        setError(
+          error.message?.includes('Invalid login')
+            ? 'E-mail ou senha inválidos.'
+            : error.message || 'Erro ao entrar. Tente novamente.',
+        )
+        return
       }
+
+      // Redireciona conforme o perfil do usuário autenticado
+      const supabase = (await import('@/lib/supabase/client')).supabase
+      const { data: userData } = await supabase.auth.getUser()
+      const { data: perfil } = await supabase
+        .from('perfis_usuarios')
+        .select('perfil')
+        .eq('id', userData?.user?.id ?? '')
+        .maybeSingle()
+
+      let role = 'Garçom'
+      if (perfil?.perfil === 'gerente') role = 'Gerente'
+      else if (perfil?.perfil === 'caixa') role = 'Caixa'
+      else if (perfil?.perfil === 'cozinha') role = 'Cozinha'
+      else if (perfil?.perfil === 'admin') role = 'Admin'
+
+      const from = (location.state as any)?.from?.pathname
+      const destination = getDestinationForRole(role, from)
+      navigate(destination, { replace: true })
     } catch (err: any) {
-      setErrorMessage(err.message || 'Erro inesperado na autenticação.')
+      setError(err.message || 'Erro inesperado ao entrar.')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#1C1917] text-[#F5F5F4] flex flex-col justify-center items-center px-4 py-8 font-sans">
-      <div className="w-full max-w-md space-y-6">
-        {/* Brand Logo & Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 items-center justify-center text-[#1C1917] shadow-lg shadow-amber-950/60 mb-2">
-            <Beer className="w-8 h-8 fill-current" />
+    <div className="min-h-dvh bg-[#1C1917] text-stone-100 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8">
+        {/* Branding da PLATAFORMA (nunca de um tenant) */}
+        <div className="text-center space-y-3">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-[#1C1917] shadow-lg shadow-amber-950/40">
+            <Beer className="w-9 h-9 fill-current" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-stone-100">
-            Rachide <span className="text-amber-500">Bar</span>
+          <h1 className="text-3xl font-black tracking-tight text-stone-50">
+            Bares e <span className="text-amber-500">Restaurantes</span>
           </h1>
-          <p className="text-xs sm:text-sm text-stone-400">
-            Acesso ao Sistema de Gestão Gastronômica & Fiscal
-          </p>
+          <p className="text-sm text-stone-400">Plataforma de gestão para bares e restaurantes</p>
         </div>
 
-        {/* Login Card */}
-        <div className="p-6 sm:p-8 rounded-2xl bg-[#292524] border border-[#44403C] shadow-2xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#44403C]">
-            <div className="flex items-center gap-2 text-sm font-bold text-stone-200">
-              <Lock className="w-4 h-4 text-amber-500" />
-              Entrar com sua conta
-            </div>
-            <Badge
-              variant="outline"
-              className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]"
-            >
-              Supabase Auth Ativo
-            </Badge>
-          </div>
-
-          {errorMessage && (
-            <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 flex items-start gap-2.5 text-xs text-red-300 animate-fade-in-up">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-              <div className="leading-relaxed">{errorMessage}</div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="rounded-lg border border-red-900/60 bg-red-950/40 text-red-300 text-xs p-3">
+              {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Fase 1 multi-tenant: seleção do estabelecimento (tenant) antes das credenciais */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-stone-300 font-semibold">Estabelecimento</Label>
-              <div className="relative">
-                <Store className="w-4 h-4 absolute left-3 top-3 z-10 text-stone-500" />
-                <Select
-                  value={estabelecimentoAtivo?.id ?? ''}
-                  onValueChange={(v) => {
-                    const found = estabelecimentos.find((e) => e.id === v)
-                    if (found) setEstabelecimentoAtivo(found)
-                  }}
+          {/* Seleção de estabelecimento (tenant) — nunca uma marca do app */}
+          <div className="space-y-1.5">
+            <Label htmlFor="estabelecimento-login" className="text-xs text-stone-300 font-semibold">
+              Estabelecimento
+            </Label>
+            <div className="relative">
+              <Building2 className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+              <Select
+                value={estabelecimentoAtivo?.id ?? ''}
+                onValueChange={(id) => {
+                  const found = estabelecimentos.find((e) => e.id === id)
+                  if (found) setEstabelecimentoAtivo(found)
+                }}
+              >
+                <SelectTrigger
+                  id="estabelecimento-login"
+                  aria-label="Selecionar estabelecimento"
+                  className="w-full pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
                 >
-                  <SelectTrigger
-                    id="estabelecimento-login"
-                    aria-label="Selecionar estabelecimento"
-                    className="w-full pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
-                  >
-                    <SelectValue placeholder="Selecione o estabelecimento" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#292524] border-[#44403C] text-stone-100">
-                    {estabelecimentos.map((e) => (
-                      <SelectItem key={e.id} value={e.id} className="focus:bg-stone-700">
-                        {e.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {estabelecimentos.length === 0 && (
-                <p className="text-[10px] text-stone-500">
-                  Nenhum estabelecimento disponível no momento.
-                </p>
-              )}
+                  <SelectValue placeholder="Selecione o estabelecimento" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#292524] border-[#44403C] text-stone-100">
+                  {estabelecimentos.map((e) => (
+                    <SelectItem key={e.id} value={e.id} className="focus:bg-stone-700">
+                      {e.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            {estabelecimentos.length === 0 && (
+              <p className="text-[10px] text-stone-500">
+                Nenhum estabelecimento disponível no momento.
+              </p>
+            )}
+          </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-stone-300 font-semibold">E-mail corporativo</Label>
-              <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
-                <Input
-                  type="email"
-                  name="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ex: gerente@rachide.bar"
-                  required
-                  autoFocus
-                  className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
-                />
-              </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email-login" className="text-xs text-stone-300 font-semibold">
+              E-mail de acesso
+            </Label>
+            <div className="relative">
+              <Mail className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+              <Input
+                id="email-login"
+                type="email"
+                name="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ex: gerente@rachide.bar"
+                required
+                autoFocus
+                className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
+              />
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-stone-300 font-semibold">Senha de acesso</Label>
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
-                <Input
-                  type="password"
-                  name="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
-                />
-              </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="senha-login" className="text-xs text-stone-300 font-semibold">
+              Senha de acesso
+            </Label>
+            <div className="relative">
+              <Lock className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
+              <Input
+                id="senha-login"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
+              />
             </div>
+          </div>
 
-            <Button
-              type="submit"
-              disabled={submitting || authLoading}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-sm h-11 shadow-md shadow-amber-950/40 transition-all flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Autenticando...
-                </>
-              ) : (
-                <>
-                  <span>Entrar no Sistema</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-          </form>
-        </div>
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-sm h-11 shadow-md shadow-amber-950/40 transition-all flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Autenticando...
+              </>
+            ) : (
+              <>
+                <span>Entrar no Sistema</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </Button>
+        </form>
 
         {/* Public Access Link */}
         <div className="text-center text-xs text-stone-400">
