@@ -60,7 +60,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
   )
 
-  const fetchProfile = async (userId: string) => {
+  // Retorna o perfil carregado (ou null) para quem chamou — o signIn precisa
+  // do tenant_id do perfil recém-logado para decidir o estabelecimento ativo.
+  const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
       // Limpa resquícios antigos de cache de override local caso ainda existam
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -88,22 +90,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         })
         setProfile(data as unknown as UserProfile)
         console.log('[useAuth] Papel identificado:', mapPerfilToRole((data as any).perfil))
+        return data as unknown as UserProfile
       } else {
         // Linha ausente (cadastro incompleto) ou bloqueada por RLS — visível
         // no console para diagnóstico do pós-login (ex.: admin sem tenant).
         console.error('[useAuth] Perfil NÃO carregado para', userId, error?.message)
         setProfile(null)
+        return null
       }
     } catch (err) {
       console.error('[useAuth] Erro ao buscar perfil do usuário:', err)
       setProfile(null)
+      return null
     }
   }
 
   // Fase 1 multi-tenant: lista de estabelecimentos disponíveis na sessão.
   // Enquanto o usuário não está autenticado, a lista pública de tenants ativos
   // alimenta o seletor da tela de login (tabela liberada em SELECT para anon).
-  const fetchEstabelecimentos = async () => {
+  // Retorna a lista carregada para o signIn poder localizar o tenant do perfil.
+  const fetchEstabelecimentos = async (): Promise<Estabelecimento[]> => {
     try {
       // Fase 1: a tabela estabelecimentos é pública em SELECT para ativos
       // (policy estabelecimentos_select_public) — mesma consulta no login e logado.
@@ -115,12 +121,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!error && data) {
         setEstabelecimentos(data as Estabelecimento[])
         console.log('[useAuth] Estabelecimentos carregados:', data.length)
+        return data as Estabelecimento[]
       } else {
         console.error('[useAuth] Erro ao buscar estabelecimentos:', error?.message)
       }
     } catch (err) {
       console.error('[useAuth] Erro inesperado ao buscar estabelecimentos:', err)
     }
+    return []
   }
 
   useEffect(() => {
@@ -189,20 +197,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     fetchEstabelecimentos()
   }, [user?.id])
 
-  // Se um estabelecimento estava salvo e some da lista, limpa; se não há seleção,
-  // adota o primeiro disponível.
+  // Regra do estabelecimento ativo: quem está LOGADO com tenant segue SEMPRE o
+  // tenant_id do seu perfil — o TenantStorage nunca decide o tenant de um
+  // usuário recém-logado, serve apenas para manter a seleção entre
+  // recarregamentos de página (e pré-selecionar o seletor da tela de login).
   useEffect(() => {
     if (estabelecimentos.length === 0) return
+    if (user && profile) {
+      if (profile.tenant_id) {
+        // Usuário de um estabelecimento: ativa o dele, vindo do perfil.
+        const own = estabelecimentos.find((e) => e.id === profile.tenant_id)
+        if (own && estabelecimentoAtivo?.id !== own.id) {
+          setEstabelecimentoAtivoState(own)
+          TenantStorage.set(own)
+        }
+        // tenant fora da lista (inativo/inexistente): signIn já mostra o erro
+        // visível — aqui NUNCA adotamos outro estabelecimento silenciosamente.
+        return
+      }
+      // Admin da plataforma (tenant nulo): escolha livre — mantém/adota a
+      // seleção como hoje, sem ser forçado a um estabelecimento.
+      const saved = TenantStorage.get()
+      if (saved && estabelecimentos.some((e) => e.id === saved.id)) {
+        if (estabelecimentoAtivo?.id !== saved.id) setEstabelecimentoAtivoState(saved)
+        return
+      }
+      if (!estabelecimentoAtivo) {
+        setEstabelecimentoAtivoState(estabelecimentos[0])
+        TenantStorage.set(estabelecimentos[0])
+      }
+      return
+    }
+    // Sem usuário logado (tela de login): apenas restaura a seleção salva,
+    // se ainda existir — nada é escrito sem ação do usuário.
     const saved = TenantStorage.get()
     if (saved && estabelecimentos.some((e) => e.id === saved.id)) {
       if (estabelecimentoAtivo?.id !== saved.id) setEstabelecimentoAtivoState(saved)
-      return
     }
-    if (!estabelecimentoAtivo) {
-      setEstabelecimentoAtivoState(estabelecimentos[0])
-      TenantStorage.set(estabelecimentos[0])
-    }
-  }, [estabelecimentos])
+  }, [user, profile, estabelecimentos, estabelecimentoAtivo])
 
   const setEstabelecimentoAtivo = (e: Estabelecimento | null) => {
     setEstabelecimentoAtivoState(e)
@@ -221,12 +253,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Perfil e lista de estabelecimentos são recarregados aqui de forma
     // explícita (fora do callback de auth) para a navegação pós-login ter
     // os dados prontos.
+    let loadedProfile: UserProfile | null = null
+    let lista: Estabelecimento[] = []
     try {
-      await fetchProfile(data.user.id)
-      await fetchEstabelecimentos()
+      loadedProfile = await fetchProfile(data.user.id)
+      lista = await fetchEstabelecimentos()
       console.log('[useAuth] signIn: perfil e estabelecimentos recarregados pós-login')
     } catch (err) {
       console.error('[useAuth] signIn: erro ao recarregar perfil/estabelecimentos', err)
+    }
+
+    // O estabelecimento ativo NO LOGIN vem SEMPRE do tenant_id do perfil —
+    // nunca da seleção salva no TenantStorage (que pode ser de outro cliente).
+    if (loadedProfile?.tenant_id) {
+      const own = lista.find((e) => e.id === loadedProfile!.tenant_id)
+      if (own) {
+        console.log('[useAuth] signIn: estabelecimento do perfil ativado:', own.nome)
+        setEstabelecimentoAtivoState(own)
+        TenantStorage.set(own)
+      } else {
+        // Erro VISÍVEL: o estabelecimento do usuário não existe ou está
+        // inativo — não seguir silenciosamente com o tenant de outro cliente.
+        console.error(
+          '[useAuth] signIn: estabelecimento do usuário não encontrado (tenant_id =',
+          loadedProfile.tenant_id,
+          ')',
+        )
+        setEstabelecimentoAtivoState(null)
+        TenantStorage.clear()
+        await supabase.auth.signOut()
+        setUser(null)
+        setSession(null)
+        setProfile(null)
+        return {
+          error: new Error(
+            'Estabelecimento do usuário não encontrado — contate o administrador da plataforma.',
+          ),
+        }
+      }
     }
     return { error: null }
   }
@@ -254,6 +318,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null)
     setSession(null)
     setProfile(null)
+    // A seleção salva era do usuário que saiu — o próximo login é decidido
+    // pelo perfil do novo usuário, nunca pelo que ficou salvo aqui.
+    setEstabelecimentoAtivoState(null)
+    TenantStorage.clear()
     console.log('[useAuth] signOut: concluído, erro:', error?.message ?? 'nenhum')
     return { error }
   }
