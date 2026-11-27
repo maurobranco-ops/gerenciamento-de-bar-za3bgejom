@@ -8,6 +8,18 @@ import type {
 // Bypass de tipo estático enquanto os types gerados não refletem as RPCs da Fase 2
 const db = supabase as any
 
+/** Perfis que o admin da plataforma pode atribuir a usuários de um estabelecimento */
+export type PerfilGestao = 'gerente' | 'garcom' | 'caixa' | 'cozinha'
+
+export interface AdminUsuarioEstabelecimento {
+  usuario_id: string
+  email: string
+  nome_exibicao: string
+  perfil: string
+  ativo: boolean
+  last_sign_in_at: string | null
+}
+
 export const EstabelecimentoService = {
   /** Lista todos os estabelecimentos com contagem de mesas e usuários (RPC gerente) */
   async listar(): Promise<EstabelecimentoComContagens[]> {
@@ -201,6 +213,78 @@ export const EstabelecimentoService = {
     }
     if (error) {
       console.error('Erro ao ativar/desativar estabelecimento (admin):', error)
+      throw error
+    }
+  },
+
+  // ===== Usuários de cada estabelecimento, geridos pelo admin da PLATAFORMA =====
+
+  /** Usuários vinculados ao estabelecimento (RPC admin, sem depender de is_gerente) */
+  async adminListarUsuarios(estabelecimentoId: string): Promise<AdminUsuarioEstabelecimento[]> {
+    const { data, error } = await db.rpc('admin_listar_usuarios_estabelecimento', {
+      p_estabelecimento_id: estabelecimentoId,
+    })
+    if (error) {
+      console.error('Erro ao listar usuários do estabelecimento (admin):', error)
+      throw error
+    }
+    return (data || []) as AdminUsuarioEstabelecimento[]
+  },
+
+  /** Cria usuário com senha provisória já vinculado ao estabelecimento escolhido */
+  async adminCriarUsuario(params: {
+    estabelecimentoId: string
+    nome: string
+    email: string
+    senha: string
+    perfil: PerfilGestao
+  }): Promise<void> {
+    const { data, error } = await db.rpc('admin_criar_usuario_estabelecimento', {
+      p_estabelecimento_id: params.estabelecimentoId,
+      p_email: params.email,
+      p_senha: params.senha,
+      p_nome: params.nome,
+      p_perfil: params.perfil,
+    })
+    if (error) {
+      console.error('Erro ao criar usuário do estabelecimento (admin):', error)
+      throw error
+    }
+    if (data && typeof data === 'object' && 'error' in data) {
+      throw new Error(String((data as any).error))
+    }
+  },
+
+  /** Redefine a senha provisória de um usuário do estabelecimento */
+  async adminRedefinirSenhaUsuario(
+    estabelecimentoId: string,
+    userId: string,
+    senha: string,
+  ): Promise<void> {
+    const { error } = await db.rpc('admin_redefinir_senha_usuario_estabelecimento', {
+      p_estabelecimento_id: estabelecimentoId,
+      p_user_id: userId,
+      p_nova_senha: senha,
+    })
+    if (error) {
+      console.error('Erro ao redefinir senha (admin):', error)
+      throw error
+    }
+  },
+
+  /** Ativa/desativa um usuário do estabelecimento (desativado não consegue logar) */
+  async adminAtivarUsuario(
+    estabelecimentoId: string,
+    userId: string,
+    ativo: boolean,
+  ): Promise<void> {
+    const { error } = await db.rpc('admin_ativar_usuario_estabelecimento', {
+      p_estabelecimento_id: estabelecimentoId,
+      p_user_id: userId,
+      p_ativo: ativo,
+    })
+    if (error) {
+      console.error('Erro ao ativar/desativar usuário (admin):', error)
       throw error
     }
   },

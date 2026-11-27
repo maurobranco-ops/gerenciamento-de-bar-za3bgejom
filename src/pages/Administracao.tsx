@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { EstabelecimentoService } from '@/services/estabelecimentoService'
 import { EstabelecimentoComContagens } from '@/types/tenant'
+import { AdminUsuariosEstabelecimento } from '@/components/AdminUsuariosEstabelecimento'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +49,7 @@ import {
   Layers,
   Loader2,
   RefreshCw,
+  Users,
 } from 'lucide-react'
 
 interface FormState {
@@ -79,6 +81,12 @@ export default function Administracao() {
   const [toggling, setToggling] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof FormState, string>>>({})
+  // Gerente inicial (opcional, só no cadastro de novo estabelecimento)
+  const [gerenteNome, setGerenteNome] = useState('')
+  const [gerenteEmail, setGerenteEmail] = useState('')
+  const [gerenteSenha, setGerenteSenha] = useState('')
+  // Estabelecimento cujos usuários estão sendo gerenciados
+  const [gerenciarTarget, setGerenciarTarget] = useState<EstabelecimentoComContagens | null>(null)
 
   // A página só é útil com o papel de admin da PLATAFORMA; qualquer outra role
   // é mandada de volta para o app operacional.
@@ -114,6 +122,9 @@ export default function Administracao() {
   const openCreateDialog = () => {
     setEditingTarget(null)
     setForm(EMPTY_FORM)
+    setGerenteNome('')
+    setGerenteEmail('')
+    setGerenteSenha('')
     setFormErrors({})
     setDialogOpen(true)
   }
@@ -143,6 +154,20 @@ export default function Administracao() {
 
   const handleSubmit = async () => {
     if (!validate()) return
+    const criarGerente =
+      !editingTarget &&
+      (gerenteNome.trim() !== '' || gerenteEmail.trim() !== '' || gerenteSenha !== '')
+    if (criarGerente) {
+      if (!gerenteNome.trim() || !gerenteEmail.trim().includes('@') || gerenteSenha.length < 6) {
+        toast({
+          title: 'Dados do Gerente inicial incompletos',
+          description:
+            'Informe nome, e-mail válido e senha provisória de no mínimo 6 caracteres — ou deixe os três campos vazios.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
     setSaving(true)
     try {
       if (editingTarget) {
@@ -163,9 +188,31 @@ export default function Administracao() {
           endereco: form.endereco.trim(),
           quantidade_mesas: Number(form.quantidade_mesas),
         })
+        if (criarGerente) {
+          try {
+            await EstabelecimentoService.adminCriarUsuario({
+              estabelecimentoId: novo.id,
+              nome: gerenteNome.trim(),
+              email: gerenteEmail.trim(),
+              senha: gerenteSenha,
+              perfil: 'gerente',
+            })
+          } catch (err: any) {
+            toast({
+              title: 'Estabelecimento cadastrado, mas o Gerente não foi criado',
+              description: `${err?.message || 'Erro desconhecido.'} Use "Gerenciar usuários" na linha do estabelecimento.`,
+              variant: 'destructive',
+            })
+            setDialogOpen(false)
+            await loadEstabelecimentos()
+            return
+          }
+        }
         toast({
           title: 'Estabelecimento cadastrado',
-          description: `${form.nome} nasceu ativo e já aparece no seletor do login.`,
+          description: criarGerente
+            ? `${form.nome} nasceu ativo com o Gerente ${gerenteNome.trim()} já criado.`
+            : `${form.nome} nasceu ativo e já aparece no seletor do login.`,
         })
       }
       setDialogOpen(false)
@@ -342,6 +389,17 @@ export default function Administracao() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setGerenciarTarget(e)}
+                        title="Gerenciar usuários deste estabelecimento"
+                        aria-label={`Gerenciar usuários de ${e.nome}`}
+                        className="text-stone-300 hover:text-amber-400 hover:bg-amber-500/10 h-8 px-2 text-xs"
+                      >
+                        <Users className="w-4 h-4" />
+                        <span className="hidden md:inline ml-1.5">Gerenciar usuários</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => openEditDialog(e)}
                         title="Editar estabelecimento"
                         aria-label={`Editar ${e.nome}`}
@@ -474,6 +532,57 @@ export default function Administracao() {
                 </span>
               </div>
             )}
+
+            {!editingTarget && (
+              <fieldset className="space-y-3 p-3 rounded-lg border border-[#44403C]">
+                <legend className="px-1 text-xs font-semibold text-stone-300">
+                  Gerente inicial (opcional)
+                </legend>
+                <p className="text-[11px] text-stone-400">
+                  Sem ele, ninguém consegue entrar no estabelecimento novo. Preencha os três campos
+                  ou deixe-os vazios.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ger-nome" className="text-xs text-stone-300 font-semibold">
+                    Nome do Gerente
+                  </Label>
+                  <Input
+                    id="ger-nome"
+                    value={gerenteNome}
+                    onChange={(e) => setGerenteNome(e.target.value)}
+                    autoComplete="off"
+                    className="bg-[#1C1917] border-[#44403C] text-stone-100 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ger-email" className="text-xs text-stone-300 font-semibold">
+                    E-mail do Gerente
+                  </Label>
+                  <Input
+                    id="ger-email"
+                    type="email"
+                    value={gerenteEmail}
+                    onChange={(e) => setGerenteEmail(e.target.value)}
+                    autoComplete="off"
+                    className="bg-[#1C1917] border-[#44403C] text-stone-100 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ger-senha" className="text-xs text-stone-300 font-semibold">
+                    Senha provisória
+                  </Label>
+                  <Input
+                    id="ger-senha"
+                    type="password"
+                    value={gerenteSenha}
+                    onChange={(e) => setGerenteSenha(e.target.value)}
+                    autoComplete="new-password"
+                    placeholder="Mínimo 6 caracteres"
+                    className="bg-[#1C1917] border-[#44403C] text-stone-100 text-sm"
+                  />
+                </div>
+              </fieldset>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
@@ -535,6 +644,13 @@ export default function Administracao() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Gerenciar usuários de um estabelecimento */}
+      <AdminUsuariosEstabelecimento
+        estabelecimento={gerenciarTarget}
+        onOpenChange={(open) => !open && setGerenciarTarget(null)}
+        onChanged={() => loadEstabelecimentos()}
+      />
     </div>
   )
 }

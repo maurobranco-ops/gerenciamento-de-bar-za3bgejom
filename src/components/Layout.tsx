@@ -657,7 +657,7 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Bares e Restaurantes v0.0.47 — Plataforma multi-tenant de gestão para bares e
+            Bares e Restaurantes v0.0.48 — Plataforma multi-tenant de gestão para bares e
             restaurantes
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
