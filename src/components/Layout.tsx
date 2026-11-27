@@ -253,14 +253,23 @@ export default function Layout() {
       {/* Top Header */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-[#292524] border-b border-[#44403C] z-30 flex items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-3">
-          {/* Mobile brand badge */}
+          {/* Marca principal logada = nome do estabelecimento (tenant ativo) */}
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-[#1C1917] shadow-md shadow-amber-950/40">
               <Beer className="w-5 h-5 fill-current" />
             </div>
-            <span className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100">
-              Bares e <span className="text-amber-500">Restaurantes</span>
-            </span>
+            {role !== 'Admin' ? (
+              <span
+                className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100 truncate max-w-[220px]"
+                title={estabelecimentoNome}
+              >
+                {estabelecimentoNome}
+              </span>
+            ) : (
+              <span className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100">
+                Bares e <span className="text-amber-500">Restaurantes</span>
+              </span>
+            )}
           </div>
 
           <div className="h-5 w-px bg-stone-700 mx-2 hidden sm:block" />
@@ -268,11 +277,11 @@ export default function Layout() {
           <h1 className="text-base sm:text-lg font-bold text-stone-200 capitalize">
             {currentTitle}
           </h1>
-          {/* Nome do tenant logado — só no contexto operacional pós-login */}
-          {role !== 'Admin' && estabelecimentoNome !== 'Estabelecimento' && (
-            <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-semibold text-amber-400 truncate max-w-[220px]">
+          {/* Marca da plataforma apenas para o admin da plataforma (sem tenant) */}
+          {role === 'Admin' && (
+            <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-semibold text-amber-400">
               <Building2 className="w-3 h-3 flex-shrink-0" />
-              {estabelecimentoNome}
+              Bares e Restaurantes
             </span>
           )}
         </div>
@@ -648,7 +657,7 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Bares e Restaurantes v0.0.42 — Plataforma multi-tenant de gestão para bares e
+            Bares e Restaurantes v0.0.47 — Plataforma multi-tenant de gestão para bares e
             restaurantes
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
