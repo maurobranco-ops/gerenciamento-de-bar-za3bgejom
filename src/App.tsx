@@ -18,6 +18,7 @@ import FilaCozinha from './pages/FilaCozinha'
 import { Navigate } from 'react-router-dom'
 import ProdutosAdmin from './pages/ProdutosAdmin'
 import MesasConfig from './pages/MesasConfig'
+import Estabelecimentos from './pages/Estabelecimentos'
 import PedidoOnline from './pages/PedidoOnline'
 import PedidosOnlineManager from './pages/PedidosOnlineManager'
 import Configuracoes from './pages/Configuracoes'
@@ -55,6 +56,7 @@ export function App() {
                   <Route path="produtos-admin" element={<ProdutosAdmin />} />
                   <Route path="mesas-config" element={<MesasConfig />} />
                   <Route path="usuarios" element={<Usuarios />} />
+                  <Route path="estabelecimentos" element={<Estabelecimentos />} />
                   <Route path="configuracoes" element={<Configuracoes />} />
                   <Route path="apresentacao" element={<Apresentacao />} />
                   <Route path="plano-nfce" element={<PlanoNFCe />} />

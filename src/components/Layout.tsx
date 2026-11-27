@@ -40,7 +40,7 @@ import {
 } from './ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Badge } from './ui/badge'
-import { QrCode, LogOut, Users } from 'lucide-react'
+import { QrCode, LogOut, Users, Building2 } from 'lucide-react'
 
 interface NavItem {
   title: string
@@ -130,6 +130,12 @@ const NAV_ITEMS: NavItem[] = [
     title: 'Usuários & Equipe',
     path: '/usuarios',
     icon: Users,
+    roles: ['Gerente'],
+  },
+  {
+    title: 'Estabelecimentos',
+    path: '/estabelecimentos',
+    icon: Building2,
     roles: ['Gerente'],
   },
   {
