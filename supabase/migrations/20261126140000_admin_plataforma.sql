@@ -16,6 +16,13 @@
 alter table public.perfis_usuarios
   alter column tenant_id drop not null;
 
+-- Papel 'admin' passa a ser válido em perfis_usuarios
+alter table public.perfis_usuarios
+  drop constraint if exists perfis_usuarios_perfil_check;
+alter table public.perfis_usuarios
+  add constraint perfis_usuarios_perfil_check
+  check (perfil in ('garcom', 'caixa', 'gerente', 'cozinha', 'admin'));
+
 -- Auxiliar: usuário autenticado atual é admin da plataforma?
 create or replace function public.is_admin()
 returns boolean
@@ -36,7 +43,8 @@ grant execute on function public.is_admin() to authenticated;
 -- RPCs do ADMIN — versão plataforma das RPCs gerente_*: sem escopo de tenant,
 -- sempre validando public.is_admin() dentro do banco
 -- ----------------------------------------------------------------------------
-create or replace function public.admin_listar_estabelecimentos()
+drop function if exists public.admin_listar_estabelecimentos();
+create function public.admin_listar_estabelecimentos()
 returns table (
   id uuid,
   nome text,
@@ -67,7 +75,8 @@ as $$
   order by e.criado_em asc;
 $$;
 
-create or replace function public.admin_criar_estabelecimento(
+drop function if exists public.admin_criar_estabelecimento(text, text, text, integer);
+create function public.admin_criar_estabelecimento(
   p_nome text,
   p_cnpj text,
   p_endereco text,
@@ -148,7 +157,8 @@ begin
 end;
 $$;
 
-create or replace function public.admin_atualizar_estabelecimento(
+drop function if exists public.admin_atualizar_estabelecimento(uuid, text, text, text, boolean);
+create function public.admin_atualizar_estabelecimento(
   p_id uuid,
   p_nome text,
   p_cnpj text,
@@ -208,7 +218,9 @@ begin
 end;
 $$;
 
-create or replace function public.admin_listar_usuarios()
+-- Assinatura OUT divergente da já existente no banco (usuarios.tsx) — 42P13
+drop function if exists public.admin_listar_usuarios();
+create function public.admin_listar_usuarios()
 returns table (
   usuario_id uuid,
   email text,
@@ -241,7 +253,8 @@ as $$
   order by p.created_at asc;
 $$;
 
-create or replace function public.admin_vincular_usuario(
+drop function if exists public.admin_vincular_usuario(uuid, uuid, text, boolean);
+create function public.admin_vincular_usuario(
   p_user_id uuid,
   p_estabelecimento_id uuid,
   p_perfil text,
@@ -313,7 +326,8 @@ begin
 end;
 $$;
 
-create or replace function public.admin_desvincular_usuario(p_user_id uuid)
+drop function if exists public.admin_desvincular_usuario(uuid);
+create function public.admin_desvincular_usuario(p_user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -348,8 +362,11 @@ grant execute on function public.admin_desvincular_usuario(uuid) to authenticate
 -- Mesmo padrão das contas demo existentes — senha em texto puro apenas
 -- porque o projeto já provisiona usuários demo assim (crypt via hook).
 -- ----------------------------------------------------------------------------
-insert into auth.users (
-  instance_id, id, aud, role, email, encrypted_password,
+do $$
+begin
+  if not exists (select 1 from auth.users where email = 'admin@bareserestaurantes.com') then
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
   raw_app_meta_data, raw_user_meta_data
 )
@@ -362,8 +379,9 @@ values (
   now(), now(), now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{"nome_exibicao":"Administrador da Plataforma"}'::jsonb
-)
-on conflict (id) do nothing;
+    );
+  end if;
+end $$;
 
 insert into public.perfis_usuarios (id, tenant_id, email, nome_exibicao, perfil, ativo)
 values (

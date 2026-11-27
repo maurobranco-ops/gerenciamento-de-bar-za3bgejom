@@ -59,6 +59,8 @@ export function MesaSelector({
     propAtendimentoAtivo !== undefined ? propAtendimentoAtivo : AtendimentoStorage.get(),
   )
   const [verificandoSessao, setVerificandoSessao] = useState(false)
+  // Nome do estabelecimento (tenant) vindo do banco — nunca fixo no código
+  const [nomeEstabelecimento, setNomeEstabelecimento] = useState<string>('')
   const [sessaoValidaNoBanco, setSessaoValidaNoBanco] = useState(false)
   const [detalhesComandaSessao, setDetalhesComandaSessao] = useState<{
     total?: number
@@ -77,6 +79,27 @@ export function MesaSelector({
       setActiveSession(propAtendimentoAtivo)
     }
   }, [propAtendimentoAtivo])
+
+  // Carrega o nome do estabelecimento (tenant) das configurações do banco
+  useEffect(() => {
+    let isMounted = true
+    ;(supabase as any)
+      .from('configuracoes_bar')
+      .select('nome_fantasia')
+      .eq('id', 'principal')
+      .maybeSingle()
+      .then(({ data }: { data: { nome_fantasia: string } | null }) => {
+        if (isMounted && data?.nome_fantasia) setNomeEstabelecimento(data.nome_fantasia)
+      })
+      .catch(() => {
+        /* mantém fallback neutro */
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const nomeBar = nomeEstabelecimento || 'Bar'
 
   // Flag para disparar seleção automática por QR/parâmetro apenas uma vez
   const autoSelectTriggeredRef = React.useRef(false)
@@ -253,7 +276,7 @@ export function MesaSelector({
       }
     } else if (mesas.length > 0) {
       // Se a lista de mesas existe e o número não foi encontrado
-      setLocalError(`Mesa ${num} não foi encontrada no Rachide Bar. Verifique o número da placa.`)
+      setLocalError(`Mesa ${num} não foi encontrada no ${nomeBar}. Verifique o número da placa.`)
       return
     }
 
@@ -349,9 +372,7 @@ export function MesaSelector({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-base text-stone-100">
-                  Rachide <span className="text-amber-500">Bar</span>
-                </span>
+                <span className="font-black text-base text-stone-100">{nomeBar}</span>
                 <Badge
                   variant="outline"
                   className="bg-amber-500/10 text-amber-400 border-amber-500/40 text-[10px] font-bold"
@@ -378,7 +399,7 @@ export function MesaSelector({
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-1">
             <Sparkles className="w-3.5 h-3.5" />
-            Bem-vindo ao Rachide Bar
+            Bem-vindo
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-100 tracking-tight">
             Em qual mesa você está?
@@ -621,7 +642,7 @@ export function MesaSelector({
 
       {/* Footer simples */}
       <footer className="text-center py-4 text-xs text-stone-500 border-t border-[#44403C]/40">
-        Rachide Bar & Petiscaria • Cardápio Digital com QR Code
+        {nomeBar} • Cardápio Digital com QR Code
       </footer>
 
       {/* Scanner Modal de Câmera */}

@@ -163,7 +163,7 @@ export const StatusAcompanhamentoPedido: React.FC<StatusAcompanhamentoPedidoProp
     statusGeralColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40'
   } else if (entregues > 0 && emAndamentoTotal === 0) {
     statusGeralTitulo = 'Todos os pedidos foram entregues!'
-    statusGeralDesc = 'Aproveite seu momento no Rachide Bar.'
+    statusGeralDesc = 'Aproveite seu momento no estabelecimento.'
     statusGeralBadge = 'Entregues'
     statusGeralColor = 'bg-stone-800 text-stone-300 border-stone-700'
   }

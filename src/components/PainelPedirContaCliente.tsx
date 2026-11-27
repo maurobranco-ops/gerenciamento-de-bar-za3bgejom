@@ -225,7 +225,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
     > = {
       solicitada: {
         titulo: 'Conta solicitada — aguardando o caixa',
-        desc: 'O caixa do Rachide Bar já recebeu o chamado e está conferindo a comanda da sua mesa.',
+        desc: 'O caixa já recebeu o chamado e está conferindo a comanda da sua mesa.',
         badge: 'Aguardando Caixa',
         badgeCls: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
         icon: Clock,
@@ -348,7 +348,7 @@ export const PainelPedirContaCliente: React.FC<PainelPedirContaClienteProps> = (
                     <div className="text-[11px] text-stone-400">
                       Recebedor:{' '}
                       <span className="font-semibold text-stone-200">
-                        {detalhesConta?.pixBeneficiarioNome || 'Rachide Bar'}
+                        {detalhesConta?.pixBeneficiarioNome || 'Estabelecimento'}
                       </span>
                     </div>
                     <div className="text-[11px] text-stone-400">

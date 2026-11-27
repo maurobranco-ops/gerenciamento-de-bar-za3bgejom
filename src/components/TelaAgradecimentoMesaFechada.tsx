@@ -42,10 +42,10 @@ export const TelaAgradecimentoMesaFechada: React.FC<TelaAgradecimentoMesaFechada
   const totalPago = detalhesConta?.total || 0
   const formaPagamento = detalhesConta?.formaPagamentoSolicitada || 'Confirmada no Caixa'
   const nomeExibicao = clienteNome || detalhesConta?.clienteNome || 'Cliente'
+  const nomeBar = barInfo?.nomeFantasia || 'Estabelecimento'
 
   const gerarHtmlDanfe = (doc: FiscalDocument) => {
-    const nomeBar = barInfo?.nomeFantasia || 'Rachide Bar'
-    const razaoSocial = barInfo?.razaoSocial || 'Rachide Bar & Petiscaria EIRELI'
+    const razaoSocial = barInfo?.razaoSocial || ''
     const cnpj = barInfo?.cnpj || '14.293.842/0001-84'
     const ie = barInfo?.inscricaoEstadual || '114.293.842.110'
     const endereco =
@@ -124,7 +124,7 @@ export const TelaAgradecimentoMesaFechada: React.FC<TelaAgradecimentoMesaFechada
 
   <div class="center subtitle">
     <strong>EMISSÃO EM AMBIENTE DE HOMOLOGAÇÃO</strong><br />
-    (Demonstração / Fiscal Rachide Bar)
+    (Demonstração / Ambiente de Homologação)
   </div>
   <div class="access-key">
     <strong>Chave de Acesso:</strong><br />
@@ -272,7 +272,7 @@ export const TelaAgradecimentoMesaFechada: React.FC<TelaAgradecimentoMesaFechada
             Muito obrigado pela sua visita, <span className="text-amber-400">{nomeExibicao}</span>!
           </h1>
           <p className="text-xs sm:text-sm text-stone-300 leading-relaxed max-w-lg mx-auto">
-            Foi um imenso prazer receber você no <strong>Rachide Bar</strong>. Seu atendimento e
+            Foi um imenso prazer receber você no <strong>{nomeBar}</strong>. Seu atendimento e
             consumo foram totalmente encerrados com sucesso pela nossa equipe do Caixa.
           </p>
         </div>
@@ -390,7 +390,7 @@ export const TelaAgradecimentoMesaFechada: React.FC<TelaAgradecimentoMesaFechada
         <div className="pt-4 border-t border-[#383330] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-400">
           <div className="flex items-center gap-2 text-[11px]">
             <Beer className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Rachide Bar & Petiscaria • Esperamos você em breve!</span>
+            <span>{nomeBar} • Esperamos você em breve!</span>
           </div>
 
           {onNovoAtendimento && (

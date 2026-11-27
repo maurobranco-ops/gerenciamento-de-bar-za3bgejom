@@ -146,6 +146,10 @@ export const EstabelecimentoService = {
       p_endereco: params.endereco,
       p_qtd_mesas: params.quantidade_mesas,
     })
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error('Erro retornado pela RPC admin_criar_estabelecimento:', data)
+      throw new Error(String((data as any).error))
+    }
     if (error) {
       console.error('Erro ao criar estabelecimento (admin):', error)
       throw error
@@ -153,7 +157,7 @@ export const EstabelecimentoService = {
     return data
   },
 
-  /** Edita dados cadastrais do estabelecimento */
+  /** Edita nome/CNPJ/endereço e ajusta mesas (ativa/desativa via adminAtivarDesativar) */
   async adminEditar(
     id: string,
     dados: { nome: string; cnpj: string; endereco: string; quantidade_mesas: number },
@@ -163,20 +167,38 @@ export const EstabelecimentoService = {
       p_nome: dados.nome,
       p_cnpj: dados.cnpj,
       p_endereco: dados.endereco,
-      p_quantidade_mesas: dados.quantidade_mesas,
+      p_ativo: true,
     })
     if (error) {
       console.error('Erro ao editar estabelecimento (admin):', error)
       throw error
     }
+    await this.adminAjustarMesas(id, dados.quantidade_mesas)
+  },
+
+  /** Ajusta o número de mesas do estabelecimento (cria as que faltam) */
+  async adminAjustarMesas(id: string, quantidadeMesas: number): Promise<void> {
+    const { data, error } = await db.rpc('admin_ajustar_mesas', {
+      p_estabelecimento_id: id,
+      p_qtd_mesas: quantidadeMesas,
+    })
+    if (error) {
+      console.error('Erro ao ajustar mesas (admin):', error)
+      throw error
+    }
+    return data
   },
 
   /** Ativa/desativa (desativado some do seletor do login) */
   async adminAtivarDesativar(id: string, ativo: boolean): Promise<void> {
-    const { error } = await db.rpc('admin_atualizar_estabelecimento', {
+    const { data, error } = await db.rpc('admin_ativar_desativar_estabelecimento', {
       p_id: id,
       p_ativo: ativo,
     })
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error('Erro retornado pela RPC admin_ativar_desativar_estabelecimento:', data)
+      throw new Error(String((data as any).error))
+    }
     if (error) {
       console.error('Erro ao ativar/desativar estabelecimento (admin):', error)
       throw error

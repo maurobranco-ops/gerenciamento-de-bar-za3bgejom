@@ -124,7 +124,7 @@ export default function Administracao() {
       nome: e.nome || '',
       cnpj: e.cnpj || '',
       endereco: e.endereco || '',
-      quantidade_mesas: e.quantidade_mesas || 0,
+      quantidade_mesas: e.qtd_mesas ?? 0,
     })
     setFormErrors({})
     setDialogOpen(true)
@@ -165,7 +165,7 @@ export default function Administracao() {
         })
         toast({
           title: 'Estabelecimento cadastrado',
-          description: `${novo?.nome ?? form.nome} nasceu ativo e já aparece no seletor do login.`,
+          description: `${form.nome} nasceu ativo e já aparece no seletor do login.`,
         })
       }
       setDialogOpen(false)
@@ -319,9 +319,9 @@ export default function Administracao() {
                   <TableCell className="hidden lg:table-cell">
                     <div className="flex items-center gap-1.5 text-xs text-stone-300">
                       <Layers className="w-3.5 h-3.5 text-stone-500" />
-                      {e.quantidade_mesas ?? '—'}
-                      {typeof e.total_usuarios === 'number' && (
-                        <span className="text-stone-500">• {e.total_usuarios} usuários</span>
+                      {e.qtd_mesas ?? '—'}
+                      {typeof e.qtd_usuarios === 'number' && (
+                        <span className="text-stone-500">• {e.qtd_usuarios} usuários</span>
                       )}
                     </div>
                   </TableCell>

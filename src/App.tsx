@@ -42,7 +42,7 @@ export function App() {
               <Route path="/pedido/:mesaNumero" element={<PedidoOnline />} />
 
               {/* Rotas Protegidas pelo Supabase Auth */}
-              <Route element={<ProtectedRoute />}>
+              <Route element={<ProtectedRoute>{null}</ProtectedRoute>}>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<Index />} />
                   <Route path="comandas" element={<Comandas />} />

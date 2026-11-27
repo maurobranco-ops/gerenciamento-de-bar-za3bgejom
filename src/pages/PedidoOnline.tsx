@@ -114,6 +114,9 @@ export default function PedidoOnline() {
 
   const [deliveryFee, setDeliveryFee] = useState<number>(7.5)
 
+  // Nome do estabelecimento (tenant) vindo do banco — nunca fixo no código
+  const [nomeEstabelecimento, setNomeEstabelecimento] = useState<string>('')
+
   // Acompanhamento do status do pedido em tempo real
   const [trackedItems, setTrackedItems] = useState<TrackedOrderItem[]>([])
   const [activeComandaId, setActiveComandaId] = useState<string>(() => {
@@ -227,7 +230,7 @@ export default function PedidoOnline() {
           <div className="w-full h-full bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 flex flex-col items-center justify-center text-stone-500 border-b border-[#44403C]/40">
             <UtensilsCrossed className="w-10 h-10 stroke-[1.5]" />
             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1.5">
-              Rachide Bar
+              Cardápio
             </span>
           </div>
         )
@@ -380,13 +383,16 @@ export default function PedidoOnline() {
             .order('categoria', { ascending: true }),
           (supabase as any)
             .from('configuracoes_bar')
-            .select('taxa_entrega_delivery')
+            .select('taxa_entrega_delivery, nome_fantasia')
             .eq('id', 'principal')
             .maybeSingle(),
         ])
 
         if (configRes.data && configRes.data.taxa_entrega_delivery !== undefined) {
           setDeliveryFee(Number(configRes.data.taxa_entrega_delivery))
+        }
+        if (configRes.data?.nome_fantasia) {
+          setNomeEstabelecimento(configRes.data.nome_fantasia)
         }
 
         const data = prodRes.data
@@ -864,7 +870,7 @@ export default function PedidoOnline() {
       setPixStatus('paid')
       toast({
         title: 'Pagamento Pix Aprovado!',
-        description: 'Recebimento simulado confirmado. Obrigado pela preferência no Rachide Bar!',
+        description: 'Recebimento simulado confirmado. Obrigado pela preferência!',
       })
     }, 2000)
   }
@@ -912,7 +918,7 @@ export default function PedidoOnline() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-black text-base text-stone-100">
-                  Rachide <span className="text-amber-500">Bar</span>
+                  {nomeEstabelecimento || 'Cardápio Digital'}
                 </span>
                 <Badge
                   variant="outline"

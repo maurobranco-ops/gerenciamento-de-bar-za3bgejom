@@ -143,7 +143,7 @@ export default function Login() {
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ex: gerente@rachide.bar"
+                placeholder="ex: gerente@bareserestaurantes.com"
                 required
                 autoFocus
                 className="pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
