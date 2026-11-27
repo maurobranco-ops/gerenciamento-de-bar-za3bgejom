@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Fase 1 multi-tenant: lista de estabelecimentos disponíveis na sessão.
   // Enquanto o usuário não está autenticado, a lista pública de tenants ativos
   // alimenta o seletor da tela de login (tabela liberada em SELECT para anon).
-  const fetchEstabelecimentos = async (authenticated: boolean) => {
+  const fetchEstabelecimentos = async () => {
     try {
       // Fase 1: a tabela estabelecimentos é pública em SELECT para ativos
       // (policy estabelecimentos_select_public) — mesma consulta no login e logado.
@@ -110,38 +110,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   useEffect(() => {
-    // Escuta mudanças de auth (sincrono sem async/await no callback)
+    // IMPORTANTE: o callback de onAuthStateChange NÃO faz chamadas ao client
+    // Supabase (fetchProfile etc.) — consultar o banco dentro do callback causa
+    // deadlock conhecido do supabase-js (goTrueClient trava o lock e o app fica
+    // em loading infinito pós-login). Aqui só atualizamos estado sincronamente;
+    // o perfil é buscado no useEffect abaixo, disparado pelo user.id.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       setSession(currentSession)
       setUser(currentSession?.user ?? null)
-      if (currentSession?.user) {
-        fetchProfile(currentSession.user.id)
-      } else {
+      if (!currentSession?.user) {
         setProfile(null)
       }
       setLoading(false)
     })
 
-    // Checagem inicial
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession)
-      setUser(initialSession?.user ?? null)
-      if (initialSession?.user) {
-        fetchProfile(initialSession.user.id).finally(() => setLoading(false))
-      } else {
-        setLoading(false)
-      }
-    })
+    // Checagem inicial de sessão persistida
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: initialSession } }) => {
+        setSession(initialSession)
+        setUser(initialSession?.user ?? null)
+      })
+      .catch((err) => console.error('[useAuth] getSession falhou:', err))
+      .finally(() => setLoading(false))
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // Carrega estabelecimentos uma vez na inicialização (login precisa da lista)
+  // Busca o perfil FORA do callback de auth, sempre que o usuário muda.
   useEffect(() => {
-    fetchEstabelecimentos(!!user)
-  }, [user])
+    if (user?.id) {
+      fetchProfile(user.id)
+    } else {
+      setProfile(null)
+    }
+  }, [user?.id])
+
+  // Carrega estabelecimentos uma vez na inicialização e quando o login muda
+  // (login precisa da lista; consulta pública de tenants ativos).
+  useEffect(() => {
+    fetchEstabelecimentos()
+  }, [user?.id])
 
   // Se um estabelecimento estava salvo e some da lista, limpa; se não há seleção,
   // adota o primeiro disponível.
@@ -167,8 +178,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (!error && data?.user) {
+      // Perfil e lista de estabelecimentos são recarregados aqui de forma
+      // explícita (fora do callback de auth) para a navegação pós-login ter
+      // os dados prontos.
       await fetchProfile(data.user.id)
-      await fetchEstabelecimentos(true)
+      await fetchEstabelecimentos()
     }
     return { error }
   }
