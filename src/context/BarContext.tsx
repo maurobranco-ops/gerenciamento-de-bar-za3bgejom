@@ -187,6 +187,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Carga inicial do Supabase
   const loadDataFromSupabase = useCallback(async () => {
+    console.log('[BarContext] loadDataFromSupabase: iniciando carga de dados')
     try {
       setIsSyncing(true)
       const [
@@ -223,8 +224,14 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
       setFilaCozinha(fetchedFila)
       if (fetchedConfig) setSettings(fetchedConfig)
+      console.log('[BarContext] loadDataFromSupabase: dados carregados', {
+        mesas: fetchedMesas.length,
+        produtos: fetchedProdutosAtivos.length,
+        comandas: fetchedComandas.length,
+        filaCozinha: fetchedFila.length,
+      })
     } catch (err) {
-      console.error('Falha ao sincronizar dados com o Supabase:', err)
+      console.error('[BarContext] Falha ao sincronizar dados com o Supabase:', err)
       toast({
         variant: 'destructive',
         title: 'Conexão Supabase',
@@ -233,10 +240,12 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoading(false)
       setIsSyncing(false)
+      console.log('[BarContext] loadDataFromSupabase: concluído — isLoading=false')
     }
   }, [toast])
 
   useEffect(() => {
+    console.log('[BarContext] Montando BarProvider — dispara carga inicial de dados')
     loadDataFromSupabase()
   }, [loadDataFromSupabase])
 

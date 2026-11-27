@@ -71,6 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
+      console.log('[useAuth] Buscando perfil de', userId)
       const { data, error } = await (supabase as any)
         .from('perfis_usuarios')
         .select('*')
@@ -78,15 +79,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle()
 
       if (!error && data) {
+        // Perfil encontrado — incluindo perfil 'admin' da plataforma com
+        // tenant_id nulo: NÃO é descartado, é um perfil válido.
+        console.log('[useAuth] Perfil carregado:', {
+          perfil: (data as any).perfil,
+          tenant_id: (data as any).tenant_id,
+          ativo: (data as any).ativo,
+        })
         setProfile(data as unknown as UserProfile)
+        console.log('[useAuth] Papel identificado:', mapPerfilToRole((data as any).perfil))
       } else {
         // Linha ausente (cadastro incompleto) ou bloqueada por RLS — visível
         // no console para diagnóstico do pós-login (ex.: admin sem tenant).
-        console.error('[useAuth] Perfil não carregado para', userId, error?.message)
+        console.error('[useAuth] Perfil NÃO carregado para', userId, error?.message)
         setProfile(null)
       }
     } catch (err) {
-      console.error('Erro ao buscar perfil do usuário:', err)
+      console.error('[useAuth] Erro ao buscar perfil do usuário:', err)
       setProfile(null)
     }
   }
@@ -103,9 +112,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .select('*')
         .eq('ativo', true)
         .order('nome', { ascending: true })
-      if (!error && data) setEstabelecimentos(data as Estabelecimento[])
+      if (!error && data) {
+        setEstabelecimentos(data as Estabelecimento[])
+        console.log('[useAuth] Estabelecimentos carregados:', data.length)
+      } else {
+        console.error('[useAuth] Erro ao buscar estabelecimentos:', error?.message)
+      }
     } catch (err) {
-      console.error('Erro ao buscar estabelecimentos:', err)
+      console.error('[useAuth] Erro inesperado ao buscar estabelecimentos:', err)
     }
   }
 
@@ -117,7 +131,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // o perfil é buscado no useEffect abaixo, disparado pelo user.id.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      console.log('[useAuth] onAuthStateChange:', event, 'com sessão:', !!currentSession)
       setSession(currentSession)
       setUser(currentSession?.user ?? null)
       if (!currentSession?.user) {
@@ -126,17 +141,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false)
     })
 
-    // Checagem inicial de sessão persistida
+    // Checagem inicial de sessão persistida — SEMPRE termina com loading=false
+    // (com sessão, sem sessão ou com erro), nenhum caminho fica pendente.
     supabase.auth
       .getSession()
       .then(({ data: { session: initialSession } }) => {
+        console.log('[useAuth] Sessão inicial:', initialSession ? 'existe' : 'não existe')
         setSession(initialSession)
         setUser(initialSession?.user ?? null)
       })
       .catch((err) => console.error('[useAuth] getSession falhou:', err))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        console.log('[useAuth] Sessão inicial verificada — loading=false')
+      })
 
-    return () => subscription.unsubscribe()
+    // Guarda de segurança: se nem getSession nem onAuthStateChange resolverem
+    // (ex.: requisição de rede presa), loading nunca fica true para sempre —
+    // todo caminho termina com a tela renderizada.
+    const safetyTimer = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev)
+          console.warn('[useAuth] Guarda de segurança acionada — loading forçado para false')
+        return false
+      })
+    }, 8000)
+
+    return () => {
+      clearTimeout(safetyTimer)
+      subscription.unsubscribe()
+    }
   }, [])
 
   // Busca o perfil FORA do callback de auth, sempre que o usuário muda.
@@ -144,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user?.id) {
       fetchProfile(user.id)
     } else {
+      console.log('[useAuth] Sem usuário — perfil limpo')
       setProfile(null)
     }
   }, [user?.id])
@@ -176,15 +211,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const signIn = async (email: string, password: string) => {
+    console.log('[useAuth] signIn: iniciando autenticação para', email)
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (!error && data?.user) {
-      // Perfil e lista de estabelecimentos são recarregados aqui de forma
-      // explícita (fora do callback de auth) para a navegação pós-login ter
-      // os dados prontos.
+    if (error) {
+      console.error('[useAuth] signIn: falhou —', error.message)
+      return { error }
+    }
+    console.log('[useAuth] signIn: autenticado com sucesso, user.id =', data?.user?.id)
+    // Perfil e lista de estabelecimentos são recarregados aqui de forma
+    // explícita (fora do callback de auth) para a navegação pós-login ter
+    // os dados prontos.
+    try {
       await fetchProfile(data.user.id)
       await fetchEstabelecimentos()
+      console.log('[useAuth] signIn: perfil e estabelecimentos recarregados pós-login')
+    } catch (err) {
+      console.error('[useAuth] signIn: erro ao recarregar perfil/estabelecimentos', err)
     }
-    return { error }
+    return { error: null }
   }
 
   const signUp = async (email: string, password: string) => {
@@ -197,6 +241,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const signOut = async () => {
+    console.log('[useAuth] signOut: limpando estado local')
     // Ao sair, limpa explicitamente qualquer resquício de storage/cache de perfil
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -209,6 +254,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null)
     setSession(null)
     setProfile(null)
+    console.log('[useAuth] signOut: concluído, erro:', error?.message ?? 'nenhum')
     return { error }
   }
 

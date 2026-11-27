@@ -1,9 +1,9 @@
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
+  children?: React.ReactNode
   /** Perfis (em formato UserRole) com permissão; se omitido, qualquer autenticado entra */
   allowedRoles?: string[]
 }
@@ -38,6 +38,13 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     if (profile && !allowedProfiles.includes(profile.perfil)) {
       return <Navigate to="/" replace />
     }
+  }
+
+  // Usado como layout route (<Route element={<ProtectedRoute/>}>): renderiza as
+  // rotas filhas via Outlet. CRÍTICO: quando children é null (padrão usado no
+  // App.tsx), retornar <>{children}</> renderizava NADA — tela escura sem erro.
+  if (children === null || children === undefined) {
+    return <Outlet />
   }
 
   return <>{children}</>

@@ -33,12 +33,15 @@ export default function Login() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    console.log('[Login] Submit do formulário de login para', email)
     setError(null)
     setSubmitting(true)
 
     try {
+      console.log('[Login] Etapa 1/4 — chamando signIn')
       const { error } = await signIn(email, password)
       if (error) {
+        console.error('[Login] Etapa 1/4 — signIn retornou erro:', error.message)
         setError(
           error.message?.includes('Invalid login')
             ? 'E-mail ou senha inválidos.'
@@ -46,8 +49,10 @@ export default function Login() {
         )
         return
       }
+      console.log('[Login] Etapa 1/4 concluída — autenticado')
 
       // Redireciona conforme o perfil do usuário autenticado
+      console.log('[Login] Etapa 2/4 — identificando perfil no banco')
       const supabase = (await import('@/lib/supabase/client')).supabase
       const { data: userData } = await supabase.auth.getUser()
       const { data: perfil, error: perfilError } = await supabase
@@ -59,26 +64,36 @@ export default function Login() {
       // Perfil ausente (RLS, cadastro incompleto ou usuário desativado) é um
       // erro visível — nunca assumir silenciosamente o papel Garçom.
       if (perfilError || !perfil) {
+        console.error(
+          '[Login] Etapa 2/4 — perfil não encontrado:',
+          perfilError?.message ?? 'linha ausente',
+        )
         setError(
           'Perfil não encontrado — contate o administrador da plataforma para verificar seu cadastro.',
         )
         await supabase.auth.signOut()
         return
       }
+      console.log('[Login] Etapa 2/4 concluída — perfil no banco:', perfil.perfil)
 
       let role = 'Garçom'
       if (perfil.perfil === 'gerente') role = 'Gerente'
       else if (perfil.perfil === 'caixa') role = 'Caixa'
       else if (perfil.perfil === 'cozinha') role = 'Cozinha'
       else if (perfil.perfil === 'admin') role = 'Admin'
+      console.log('[Login] Etapa 3/4 concluída — papel identificado:', role)
 
       const from = (location.state as any)?.from?.pathname
       const destination = getDestinationForRole(role, from)
+      console.log('[Login] Etapa 4/4 — navegando para', destination)
       navigate(destination, { replace: true })
+      console.log('[Login] Etapa 4/4 — navegação disparada')
     } catch (err: any) {
+      console.error('[Login] Erro inesperado no fluxo de login:', err)
       setError(err.message || 'Erro inesperado ao entrar.')
     } finally {
       setSubmitting(false)
+      console.log('[Login] handleSubmit finalizado — submitting=false')
     }
   }
 

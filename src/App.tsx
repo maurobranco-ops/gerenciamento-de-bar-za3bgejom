@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -29,56 +30,60 @@ import Administracao from './pages/Administracao'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 
+console.log('[App] Módulo carregado — montando árvore da aplicação')
+
 export function App() {
   return (
-    <TooltipProvider>
-      <AuthProvider>
-        <BarProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Rotas Públicas: Pedido On-line pelo QR Code da Mesa e Login */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/pedido" element={<PedidoOnline />} />
-              <Route path="/pedido/:mesaNumero" element={<PedidoOnline />} />
+    <ErrorBoundary>
+      <TooltipProvider>
+        <AuthProvider>
+          <BarProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Rotas Públicas: Pedido On-line pelo QR Code da Mesa e Login */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/pedido" element={<PedidoOnline />} />
+                <Route path="/pedido/:mesaNumero" element={<PedidoOnline />} />
 
-              {/* Rotas Protegidas pelo Supabase Auth */}
-              <Route element={<ProtectedRoute>{null}</ProtectedRoute>}>
-                <Route path="/" element={<Layout />}>
-                  <Route index element={<Index />} />
-                  <Route path="comandas" element={<Comandas />} />
-                  <Route path="pedidos-online" element={<PedidosOnlineManager />} />
-                  <Route path="cardapio" element={<Cardapio />} />
-                  <Route path="estoque" element={<Estoque />} />
-                  <Route path="fluxo-caixa" element={<FluxoCaixa />} />
-                  <Route path="dre" element={<DRE />} />
-                  <Route path="fiscal" element={<Fiscal />} />
-                  <Route path="fila-cozinha" element={<FilaCozinha />} />
-                  <Route path="kds" element={<Navigate to="/fila-cozinha" replace />} />
-                  <Route path="produtos-admin" element={<ProdutosAdmin />} />
-                  <Route path="mesas-config" element={<MesasConfig />} />
-                  <Route path="usuarios" element={<Usuarios />} />
-                  <Route path="estabelecimentos" element={<Estabelecimentos />} />
-                  <Route path="configuracoes" element={<Configuracoes />} />
-                  <Route path="apresentacao" element={<Apresentacao />} />
-                  <Route path="plano-nfce" element={<PlanoNFCe />} />
-                  <Route
-                    path="admin"
-                    element={
-                      <ProtectedRoute allowedRoles={['Admin']}>
-                        <Administracao />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="*" element={<NotFound />} />
+                {/* Rotas Protegidas pelo Supabase Auth */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/" element={<Layout />}>
+                    <Route index element={<Index />} />
+                    <Route path="comandas" element={<Comandas />} />
+                    <Route path="pedidos-online" element={<PedidosOnlineManager />} />
+                    <Route path="cardapio" element={<Cardapio />} />
+                    <Route path="estoque" element={<Estoque />} />
+                    <Route path="fluxo-caixa" element={<FluxoCaixa />} />
+                    <Route path="dre" element={<DRE />} />
+                    <Route path="fiscal" element={<Fiscal />} />
+                    <Route path="fila-cozinha" element={<FilaCozinha />} />
+                    <Route path="kds" element={<Navigate to="/fila-cozinha" replace />} />
+                    <Route path="produtos-admin" element={<ProdutosAdmin />} />
+                    <Route path="mesas-config" element={<MesasConfig />} />
+                    <Route path="usuarios" element={<Usuarios />} />
+                    <Route path="estabelecimentos" element={<Estabelecimentos />} />
+                    <Route path="configuracoes" element={<Configuracoes />} />
+                    <Route path="apresentacao" element={<Apresentacao />} />
+                    <Route path="plano-nfce" element={<PlanoNFCe />} />
+                    <Route
+                      path="admin"
+                      element={
+                        <ProtectedRoute allowedRoles={['Admin']}>
+                          <Administracao />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
-          </BrowserRouter>
-          <Toaster />
-          <Sonner />
-        </BarProvider>
-      </AuthProvider>
-    </TooltipProvider>
+              </Routes>
+            </BrowserRouter>
+            <Toaster />
+            <Sonner />
+          </BarProvider>
+        </AuthProvider>
+      </TooltipProvider>
+    </ErrorBoundary>
   )
 }
 
