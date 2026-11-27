@@ -345,6 +345,7 @@ export type Database = {
           cnpj: string | null
           config: Json
           criado_em: string
+          endereco: string | null
           id: string
           nome: string
         }
@@ -354,6 +355,7 @@ export type Database = {
           cnpj?: string | null
           config?: Json
           criado_em?: string
+          endereco?: string | null
           id?: string
           nome: string
         }
@@ -363,6 +365,7 @@ export type Database = {
           cnpj?: string | null
           config?: Json
           criado_em?: string
+          endereco?: string | null
           id?: string
           nome?: string
         }
@@ -747,6 +750,52 @@ export type Database = {
       gerente_atualizar_capacidade_mesa: {
         Args: { p_capacidade: number; p_mesa_id: string }
         Returns: boolean
+      }
+      gerente_atualizar_estabelecimento: {
+        Args: {
+          p_ativo: boolean
+          p_cnpj: string
+          p_endereco: string
+          p_id: string
+          p_nome: string
+        }
+        Returns: Json
+      }
+      gerente_criar_estabelecimento: {
+        Args: {
+          p_cnpj: string
+          p_endereco: string
+          p_nome: string
+          p_qtd_mesas?: number
+        }
+        Returns: Json
+      }
+      gerente_desvincular_usuario: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      gerente_listar_estabelecimentos: {
+        Args: never
+        Returns: {
+          ativo: boolean
+          cnpj: string
+          criado_em: string
+          criado_por: string
+          endereco: string
+          id: string
+          nome: string
+          qtd_mesas: number
+          qtd_usuarios: number
+        }[]
+      }
+      gerente_vincular_usuario: {
+        Args: {
+          p_estabelecimento_id: string
+          p_perfil: string
+          p_user_id: string
+          p_usuario_ativo?: boolean
+        }
+        Returns: Json
       }
       get_current_user_profile: { Args: never; Returns: string }
       iniciar_atendimento_online: {
