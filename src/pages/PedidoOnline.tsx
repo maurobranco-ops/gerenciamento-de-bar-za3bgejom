@@ -46,6 +46,8 @@ import { DetalhesContaMesa, PaymentMethod } from '@/types/bar'
 import { BarService } from '@/services/barService'
 import { SoundEffects } from '@/lib/soundEffects'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
+import { resolveTenantAnonimo } from '@/lib/tenantAnonimo'
+import { setMesaAnonimaAtual } from '@/lib/supabase/client'
 import { generatePixBRCode, isPixConfigured } from '@/lib/pix'
 
 interface CartItem {
@@ -62,6 +64,12 @@ export default function PedidoOnline() {
   const mesaParam = mesaNumero
     ? parseInt(mesaNumero, 10)
     : parseInt(searchParams.get('mesa') || '0', 10)
+
+  // Injeção síncrona do header x-mesa (antes dos efeitos dos componentes filhos,
+  // ex.: MesaSelector) para as políticas RLS anon resolverem o tenant pela mesa.
+  if (!isNaN(mesaParam) && mesaParam > 0) {
+    setMesaAnonimaAtual(mesaParam)
+  }
 
   const [mesaNum, setMesaNum] = useState<number>(!isNaN(mesaParam) ? mesaParam : 0)
 
@@ -125,9 +133,37 @@ export default function PedidoOnline() {
     pixCidade?: string
   } | null>(null)
 
+  // Tenant do cliente anônimo (resolvido pela mesa da URL via RPC) e mesa corrente
+  // para o header x-mesa — os SELECTs diretos do /pedido dependem disso p/ RLS.
+  const [tenantIdMesa, setTenantIdMesa] = useState<string | null>(null)
+
   useEffect(() => {
     let ativo = true
-    BarService.fetchConfiguracoes()
+    if (!mesaParam || mesaParam <= 0 || isNaN(mesaParam)) {
+      setMesaAnonimaAtual(null)
+      return
+    }
+    setMesaAnonimaAtual(mesaParam)
+    resolveTenantAnonimo(mesaParam).then((tenantId) => {
+      if (ativo && tenantId) {
+        setTenantIdMesa(tenantId)
+        // Atualiza a sessão local agora que o tenant ficou conhecido (o init
+        // síncrono abaixo só conseguiu ler a chave legada)
+        setAtendimentoAtivo(AtendimentoStorage.get(tenantId, mesaParam))
+        setActiveComandaId(AtendimentoStorage.getComandaIdForMesa(tenantId, mesaParam))
+      }
+    })
+    return () => {
+      ativo = false
+      // Saiu do /pedido: não envia mais o header x-mesa em nenhuma requisição
+      setMesaAnonimaAtual(null)
+    }
+  }, [mesaParam])
+
+  useEffect(() => {
+    let ativo = true
+    // Anon no /pedido: envia o header x-mesa para a RLS resolver o tenant correto
+    BarService.fetchConfiguracoes(mesaParam > 0 ? mesaParam : null)
       .then((s) => {
         if (ativo) {
           setPixConfig({
@@ -141,7 +177,7 @@ export default function PedidoOnline() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [mesaParam])
 
   // Payload Pix (BR Code) gerado só com dados do tenant; null quando não configurado
   let pixPayload: string | null = null
@@ -162,8 +198,10 @@ export default function PedidoOnline() {
   // Acompanhamento do status do pedido em tempo real
   const [trackedItems, setTrackedItems] = useState<TrackedOrderItem[]>([])
   const [activeComandaId, setActiveComandaId] = useState<string>(() => {
+    // Init síncrono: sem tenant resolvido ainda (RPC é async) — lê da chave legada
+    // primeiro e é atualizado quando o RPC resolve o tenant (useEffect acima).
     return (
-      AtendimentoStorage.getComandaIdForMesa(mesaParam || 0) ||
+      AtendimentoStorage.getComandaIdForMesa(null, mesaParam || 0) ||
       localStorage.getItem(`rachide_active_cmd_mesa_${mesaParam || 0}`) ||
       ''
     )
@@ -176,7 +214,9 @@ export default function PedidoOnline() {
 
   // Estado da sessão local ativa de atendimento
   const [atendimentoAtivo, setAtendimentoAtivo] = useState<AtendimentoAtivoLocal | null>(() => {
-    return AtendimentoStorage.get()
+    // Init síncrono sem tenant: o storage só lê a chave legada (migração one-time);
+    // reavaliado quando o RPC resolve o tenant da mesa.
+    return AtendimentoStorage.get(null, mesaParam || 0)
   })
 
   // Modal de confirmação ao sair da tela da mesa (voltar para o início)
@@ -281,13 +321,13 @@ export default function PedidoOnline() {
 
   // Carrega lista de mesas do banco para validação de status em tempo real
   const fetchMesas = React.useCallback(async () => {
+    if (mesaParam > 0 && !tenantIdMesa) return
     try {
       setLoadingMesas(true)
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('mesas')
         .select('*')
         .order('numero', { ascending: true })
-
       if (!error && data) {
         const mappedMesas: TableRecord[] = data.map((m: any) => ({
           id: m.id,
@@ -302,7 +342,7 @@ export default function PedidoOnline() {
         // Se uma mesa veio na URL (ex: /pedido/4), validar se ela está disponível ou se houve transferência
         if (mesaParam > 0) {
           const currentMesa = mappedMesas.find((m) => m.numero === mesaParam)
-          const storedAtendimento = AtendimentoStorage.get()
+          const storedAtendimento = AtendimentoStorage.get(tenantIdMesa, mesaParam)
           const isMinhaMesa = storedAtendimento && storedAtendimento.mesaNumero === mesaParam
 
           // VERIFICAÇÃO DE TRANSFERÊNCIA DE MESA:
@@ -322,12 +362,14 @@ export default function PedidoOnline() {
 
               if (cmdTransferida && cmdTransferida.mesa_numero !== mesaParam) {
                 // A equipe transferiu a mesa do cliente! Atualiza o armazenamento local para a nova mesa
-                AtendimentoStorage.set({
+                AtendimentoStorage.set(tenantIdMesa, {
                   mesaNumero: cmdTransferida.mesa_numero,
                   comandaId: cmdTransferida.id,
                   clienteNome: storedAtendimento.clienteNome,
                 })
-                setAtendimentoAtivo(AtendimentoStorage.get())
+                setAtendimentoAtivo(
+                  AtendimentoStorage.get(tenantIdMesa, cmdTransferida.mesa_numero),
+                )
                 setMesaNum(cmdTransferida.mesa_numero)
                 setActiveComandaId(cmdTransferida.id)
                 navigate(`/pedido/${cmdTransferida.mesa_numero}`, { replace: true })
@@ -338,7 +380,7 @@ export default function PedidoOnline() {
                 return
               } else {
                 // A mesa foi liberada/fechada e não há comanda ativa: limpa os dados antigos para não ver lixo
-                AtendimentoStorage.clear()
+                AtendimentoStorage.clear(tenantIdMesa, mesaParam)
                 setAtendimentoAtivo(null)
                 setDetalhesConta(null)
                 setTrackedItems([])
@@ -384,7 +426,8 @@ export default function PedidoOnline() {
     } finally {
       setLoadingMesas(false)
     }
-  }, [mesaParam, navigate, toast])
+    // tenantIdMesa nas deps: o storage do atendimento é lido/gravado por tenant
+  }, [mesaParam, navigate, toast, tenantIdMesa])
 
   useEffect(() => {
     fetchMesas()
@@ -414,11 +457,12 @@ export default function PedidoOnline() {
 
   // Carrega cardápio público ativo do banco e taxa de entrega das configurações
   useEffect(() => {
+    if (mesaParam > 0 && !tenantIdMesa) return
     const fetchMenu = async () => {
       try {
         setLoading(true)
         const [prodRes, configRes] = await Promise.all([
-          supabase
+          (supabase as any)
             .from('produtos')
             .select('*')
             .eq('ativo', true)
@@ -464,7 +508,10 @@ export default function PedidoOnline() {
     }
 
     fetchMenu()
-  }, [])
+    // tenantIdMesa nas deps: os SELECTs anon (produtos/configuracoes) são filtrados
+    // pela RLS que resolve o tenant pelo header global x-mesa — recarrega ao resolver.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesaParam, tenantIdMesa])
 
   // Buscar status ao vivo da fila da mesa/comanda
   const fetchOrderStatus = React.useCallback(
@@ -655,7 +702,7 @@ export default function PedidoOnline() {
 
   // Novo atendimento pós-fechamento (limpa comanda antiga do storage e abre seletor)
   const handleIniciarNovoAtendimentoPosFechamento = () => {
-    AtendimentoStorage.clear()
+    AtendimentoStorage.clear(tenantIdMesa, mesaNum)
     try {
       localStorage.removeItem(`rachide_cart_mesa_${mesaNum}`)
       localStorage.removeItem(`rachide_active_cmd_mesa_${mesaNum}`)
@@ -780,16 +827,16 @@ export default function PedidoOnline() {
     if (mesaNum > 0) {
       const defaultComandaId = `cmd-${mesaNum < 10 ? `0${mesaNum}` : mesaNum}`
       const targetComanda = activeComandaId || defaultComandaId
-      const currentStored = AtendimentoStorage.get()
-      AtendimentoStorage.set({
+      const currentStored = AtendimentoStorage.get(tenantIdMesa, mesaNum)
+      AtendimentoStorage.set(tenantIdMesa, {
         mesaNumero: mesaNum,
         comandaId: targetComanda,
         clienteNome:
           currentStored?.clienteNome || (isDelivery ? clientName || undefined : undefined),
       })
-      setAtendimentoAtivo(AtendimentoStorage.get())
+      setAtendimentoAtivo(AtendimentoStorage.get(tenantIdMesa, mesaNum))
     }
-  }, [mesaNum, activeComandaId, clientName, isDelivery])
+  }, [mesaNum, activeComandaId, clientName, isDelivery, tenantIdMesa])
 
   // Interceptar botão Voltar do navegador via popstate quando estiver dentro de uma mesa ativa
   useEffect(() => {
@@ -821,7 +868,7 @@ export default function PedidoOnline() {
     setModalConfirmarSaidaOpen(false)
     setMesaBlockedError(null)
     setMesaNum(0)
-    setAtendimentoAtivo(AtendimentoStorage.get())
+    setAtendimentoAtivo(AtendimentoStorage.get(tenantIdMesa, mesaNum))
     navigate('/pedido', { replace: true })
     toast({
       title: `Atendimento na Mesa ${mesaNum} permanece aberto`,
@@ -844,7 +891,7 @@ export default function PedidoOnline() {
       // Para mesa: não sobrescreve cliente_nome. O nome já foi informado e gravado na abertura da mesa.
       const nomeParaEnvio = isDelivery
         ? clientName.trim() || 'Cliente Delivery'
-        : AtendimentoStorage.get()?.clienteNome || ''
+        : AtendimentoStorage.get(tenantIdMesa, mesaNum)?.clienteNome || ''
 
       const { data, error } = await (supabase.rpc as any)('enviar_pedido_online', {
         p_mesa_numero: mesaNum > 0 ? mesaNum : 10,
@@ -861,12 +908,15 @@ export default function PedidoOnline() {
       const targetComandaId = res?.comanda_id || `cmd-${mesaNum > 0 ? mesaNum : 10}`
 
       setActiveComandaId(targetComandaId)
-      AtendimentoStorage.set({
+      AtendimentoStorage.set(tenantIdMesa, {
         mesaNumero: mesaNum > 0 ? mesaNum : 10,
         comandaId: targetComandaId,
-        clienteNome: AtendimentoStorage.get()?.clienteNome || clientName.trim() || undefined,
+        clienteNome:
+          AtendimentoStorage.get(tenantIdMesa, mesaNum > 0 ? mesaNum : 10)?.clienteNome ||
+          clientName.trim() ||
+          undefined,
       })
-      setAtendimentoAtivo(AtendimentoStorage.get())
+      setAtendimentoAtivo(AtendimentoStorage.get(tenantIdMesa, mesaNum > 0 ? mesaNum : 10))
 
       setOrderSuccess({
         comandaId: targetComandaId,
@@ -941,7 +991,7 @@ export default function PedidoOnline() {
           setDetalhesConta(null)
           setTrackedItems([])
           setMesaNum(num)
-          setAtendimentoAtivo(AtendimentoStorage.get())
+          setAtendimentoAtivo(AtendimentoStorage.get(tenantIdMesa, num))
           navigate(`/pedido/${num}`, { replace: true })
         }}
       />

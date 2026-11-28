@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { QRScanner } from './QRScanner'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
+import { resolveTenantAnonimo } from '@/lib/tenantAnonimo'
 import { supabase } from '@/lib/supabase/client'
 import { BarService } from '@/services/barService'
 
@@ -55,13 +56,18 @@ export function MesaSelector({
     initialMesaParam && initialMesaParam > 0 ? String(initialMesaParam) : '',
   )
   const [localError, setLocalError] = useState<string | null>(null)
+  // Tenant da mesa (?mesa=X): resolvido via RPC e usado em todas as leituras/escritas
+  // do atendimento local — sem tenant resolvido, o storage não lê nem grava nada.
+  const [tenantIdMesa, setTenantIdMesa] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<AtendimentoAtivoLocal | null>(
-    propAtendimentoAtivo !== undefined ? propAtendimentoAtivo : AtendimentoStorage.get(),
+    propAtendimentoAtivo !== undefined
+      ? propAtendimentoAtivo
+      : AtendimentoStorage.get(null, initialMesaParam),
   )
-  const [verificandoSessao, setVerificandoSessao] = useState(false)
   // Nome do estabelecimento (tenant) vindo do banco — nunca fixo no código
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState<string>('')
   const [sessaoValidaNoBanco, setSessaoValidaNoBanco] = useState(false)
+  const [verificandoSessao, setVerificandoSessao] = useState(false)
   const [detalhesComandaSessao, setDetalhesComandaSessao] = useState<{
     total?: number
     itensCount?: number
@@ -80,6 +86,26 @@ export function MesaSelector({
     }
   }, [propAtendimentoAtivo])
 
+  // Resolve o tenant do cliente anônimo pela mesa da URL e relê a sessão local
+  // com o tenant correto (as chaves do storage incluem o tenant).
+  useEffect(() => {
+    let isMounted = true
+    if (!initialMesaParam || initialMesaParam <= 0) return
+    resolveTenantAnonimo(initialMesaParam).then((tenantId) => {
+      if (isMounted && tenantId) {
+        setTenantIdMesa(tenantId)
+        if (propAtendimentoAtivo === undefined) {
+          setActiveSession(AtendimentoStorage.get(tenantId, initialMesaParam))
+        }
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+    // propAtendimentoAtivo não entra nas deps: a resolução do tenant é única no mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMesaParam])
+
   // Carrega o nome do estabelecimento (tenant) das configurações do banco
   useEffect(() => {
     let isMounted = true
@@ -87,7 +113,6 @@ export function MesaSelector({
       .from('configuracoes_bar')
       .select('nome_fantasia')
       .eq('id', 'principal')
-      .maybeSingle()
       .then(({ data }: { data: { nome_fantasia: string } | null }) => {
         if (isMounted && data?.nome_fantasia) setNomeEstabelecimento(data.nome_fantasia)
       })
@@ -97,7 +122,7 @@ export function MesaSelector({
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [initialMesaParam])
 
   const nomeBar = nomeEstabelecimento || 'Bar'
 
@@ -124,10 +149,11 @@ export function MesaSelector({
 
   // Verifica ao vivo no banco se a comanda/atendimento local ainda está aberto
   useEffect(() => {
+    if (initialMesaParam > 0 && !tenantIdMesa) return
     let isMounted = true
 
     const verificarSessaoAoVivo = async () => {
-      const stored = activeSession || AtendimentoStorage.get()
+      const stored = activeSession || AtendimentoStorage.get(tenantIdMesa, initialMesaParam)
       if (!stored || !stored.mesaNumero) {
         if (isMounted) {
           setSessaoValidaNoBanco(false)
@@ -163,7 +189,7 @@ export function MesaSelector({
             setDetalhesComandaSessao(null)
           }
           if (cmd && cmd.status === 'Livre') {
-            AtendimentoStorage.clear()
+            AtendimentoStorage.clear(tenantIdMesa, stored.mesaNumero)
           }
         }
       } catch (err) {
@@ -184,7 +210,9 @@ export function MesaSelector({
     return () => {
       isMounted = false
     }
-  }, [activeSession])
+    // tenantIdMesa nas deps: a limpeza da sessão usa o tenant resolvido pela mesa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession, tenantIdMesa, initialMesaParam])
 
   // Mesas ordenadas por número
   const sortedMesas = [...mesas].sort((a, b) => a.numero - b.numero)
@@ -246,7 +274,7 @@ export function MesaSelector({
     const found = mesas.find((m) => m.numero === num)
 
     // Checar se a mesa pertence ao próprio atendimento deste aparelho
-    const stored = activeSession || AtendimentoStorage.get()
+    const stored = activeSession || AtendimentoStorage.get(tenantIdMesa, num)
     const isMinhaMesa = stored && stored.mesaNumero === num && sessaoValidaNoBanco
 
     // Se a mesa estiver ocupada mas for deste mesmo aparelho, permite reentrar diretamente!
@@ -314,13 +342,13 @@ export function MesaSelector({
         return
       }
 
-      // Salva no storage local com o nome do cliente registrado
-      AtendimentoStorage.set({
+      // Salva no storage local com o nome do cliente registrado (tenant resolvido da mesa)
+      AtendimentoStorage.set(tenantIdMesa, {
         mesaNumero: modalNomeMesa,
         comandaId: res?.comanda_id,
         clienteNome: nomeFormatado,
       })
-      setActiveSession(AtendimentoStorage.get())
+      setActiveSession(AtendimentoStorage.get(tenantIdMesa, modalNomeMesa))
 
       const mesaEscolhida = modalNomeMesa
       setModalNomeMesa(null)

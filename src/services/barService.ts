@@ -1068,6 +1068,8 @@ export const BarService = {
   },
 
   async obterDetalhesContaMesa(mesaNumero: number): Promise<DetalhesContaMesa> {
+    // RPC SECURITY DEFINER: quando o chamador é anon (cliente no /pedido), o
+    // tenant é resolvido pelo header global x-mesa (client.ts); logado, ignora.
     const { data, error } = await (db.rpc as any)('obter_detalhes_conta_mesa', {
       p_mesa_numero: mesaNumero,
     })
@@ -1297,7 +1299,14 @@ export const BarService = {
   },
 
   // --- CONFIGURAÇÕES DO BAR ---
-  async fetchConfiguracoes(): Promise<BarSettings> {
+  /**
+   * Configurações do bar. O tenant resolve-se pelo header global x-mesa
+   * (injetado em src/lib/supabase/client.ts quando o cliente anônimo está no
+   * /pedido?mesa=X) — o parâmetro `mesaAnonima` documenta/qualifica o contexto
+   * anon e garante o caminho de marca do estabelecimento pela mesa.
+   */
+  async fetchConfiguracoes(mesaAnonima?: number | null): Promise<BarSettings> {
+    void mesaAnonima
     const { data, error } = await db
       .from('configuracoes_bar')
       .select('*')
@@ -1315,19 +1324,30 @@ export const BarService = {
     let corPrimaria: string | null = null
     let logoUrl: string | null = null
     try {
-      const { data: perfil } = await db
-        .from('perfis_usuarios')
-        .select('tenant_id')
-        .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
-        .maybeSingle()
-      if (perfil?.tenant_id) {
+      if (mesaAnonima && mesaAnonima > 0) {
+        // Cliente anônimo: marca vem do estabelecimento resolvido pela mesa (RLS x-mesa)
         const { data: est } = await db
           .from('estabelecimentos')
           .select('cor_primaria, logo_url')
-          .eq('id', perfil.tenant_id)
+          .limit(1)
           .maybeSingle()
         corPrimaria = est?.cor_primaria ?? null
         logoUrl = est?.logo_url ?? null
+      } else {
+        const { data: perfil } = await db
+          .from('perfis_usuarios')
+          .select('tenant_id')
+          .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+          .maybeSingle()
+        if (perfil?.tenant_id) {
+          const { data: est } = await db
+            .from('estabelecimentos')
+            .select('cor_primaria, logo_url')
+            .eq('id', perfil.tenant_id)
+            .maybeSingle()
+          corPrimaria = est?.cor_primaria ?? null
+          logoUrl = est?.logo_url ?? null
+        }
       }
     } catch (e) {
       console.warn('Não foi possível carregar marca do estabelecimento:', e)
