@@ -1414,6 +1414,7 @@ export const BarService = {
       pixChave: data.pix_chave ?? DEFAULT_BAR_SETTINGS.pixChave,
       pixBeneficiarioNome: data.pix_beneficiario_nome || DEFAULT_BAR_SETTINGS.pixBeneficiarioNome,
       pixCidade: data.pix_cidade || DEFAULT_BAR_SETTINGS.pixCidade,
+      corPrimaria: data.cor_primaria || DEFAULT_BAR_SETTINGS.corPrimaria,
       updatedAt: data.updated_at,
     }
   },

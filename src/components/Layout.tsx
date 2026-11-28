@@ -286,7 +286,7 @@ export default function Layout() {
               <span
                 className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100 truncate max-w-[220px]"
                 title={estabelecimentoNome}
-                style={{ color: role !== 'Admin' ? corMarca : undefined }}
+                style={{ color: corMarca }}
               >
                 {estabelecimentoNome}
               </span>
@@ -579,18 +579,13 @@ export default function Layout() {
                   }
                   title={collapsed ? `${item.title}${!hasAccess ? ' (Restrito)' : ''}` : undefined}
                 >
-                  <Icon
-                    className={`w-5 h-5 flex-shrink-0 transition-colors ${
-                      isActive ? 'text-stone-950' : hasAccess ? '' : 'text-stone-600'
-                    }`}
-                    style={
-                      isActive
-                        ? undefined
-                        : hasAccess
-                          ? { color: role !== 'Admin' ? corMarca : undefined }
-                          : undefined
-                    }
-                  />
+                  <span style={isActive ? undefined : hasAccess ? { color: corMarca } : undefined}>
+                    <Icon
+                      className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                        isActive ? 'text-stone-950' : hasAccess ? '' : 'text-stone-600'
+                      }`}
+                    />
+                  </span>
                   {!collapsed && (
                     <div className="flex items-center justify-between flex-1 truncate">
                       <span className="truncate">{item.title}</span>
