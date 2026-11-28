@@ -502,7 +502,6 @@ export default function PedidoOnline() {
         // disparada aqui já sai com o header ativo.
         if (mesaParam > 0) {
           const tenantId = await resolveTenantAnonimo(mesaParam, tenantParam)
-          if (!ativo) return
           if (tenantId) {
             setTenantIdMesa(tenantId)
             setTenantAnonimoAtual(tenantId)
