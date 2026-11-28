@@ -275,7 +275,7 @@ export default function DRE() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `DRE_Rachide_Bar_${preset}.csv`)
+    link.setAttribute('download', `DRE_${preset}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

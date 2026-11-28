@@ -224,11 +224,11 @@ export function printComandaAccount({
 
   const html = `
     <div class="text-center">
-      <div class="header-title">${settings?.nomeFantasia || 'RACHIDE BAR'}</div>
-      <div style="font-size: 10px;">${settings?.razaoSocial || 'Rachide Bar & Petiscaria EIRELI'}</div>
-      <div style="font-size: 9px;">CNPJ: ${settings?.cnpj || '14.293.842/0001-84'}</div>
-      <div style="font-size: 9px;">${settings?.enderecoCompleto || 'Rua dos Boêmios, 142 - SP'}</div>
-      <div style="font-size: 9px;">Tel: ${settings?.telefone || '(11) 3849-2041'}</div>
+      <div class="header-title">${settings?.nomeFantasia || 'Estabelecimento'}</div>
+      <div style="font-size: 10px;">${settings?.razaoSocial || 'Estabelecimento'}</div>
+      <div style="font-size: 9px;">CNPJ: ${settings?.cnpj || 'Configure o CNPJ em Configurações'}</div>
+      <div style="font-size: 9px;">${settings?.enderecoCompleto || 'Configure o endereço em Configurações'}</div>
+      <div style="font-size: 9px;">Tel: ${settings?.telefone || 'Configure o telefone em Configurações'}</div>
       
       <div class="double-divider"></div>
       <div class="font-bold" style="font-size: 13px;">CONFERÊNCIA DE CONTA (NÃO É DOCUMENTO FISCAL)</div>
@@ -284,5 +284,5 @@ export function printComandaAccount({
     </div>
   `
 
-  return openPrintWindow(html, `Conta Mesa ${comanda.tableNumber} - Rachide Bar`)
+  return openPrintWindow(html, `Conta Mesa ${comanda.tableNumber}`)
 }

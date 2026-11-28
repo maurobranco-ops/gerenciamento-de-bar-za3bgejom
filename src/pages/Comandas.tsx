@@ -1343,7 +1343,9 @@ export default function Comandas() {
                           <div className="text-[11px] text-stone-400">
                             Beneficiário:{' '}
                             <span className="font-semibold text-stone-200">
-                              {settings.pixBeneficiarioNome || 'Rachide Bar'}
+                              {settings.pixBeneficiarioNome ||
+                                settings.nomeFantasia ||
+                                'Estabelecimento'}
                             </span>
                           </div>
                           <div className="text-[11px] text-stone-400">
@@ -1497,7 +1499,7 @@ export default function Comandas() {
                     </div>
                     <div>
                       <div className="font-bold text-stone-100 text-xs">
-                        Rachide Bar & Petiscaria
+                        {settings.nomeFantasia || 'Estabelecimento'}
                       </div>
                       <div className="text-[10px] text-emerald-400">Online • TEP Integrado</div>
                     </div>

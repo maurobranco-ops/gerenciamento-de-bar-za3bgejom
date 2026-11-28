@@ -17,8 +17,10 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useBar } from '@/context/BarContext'
 
 export default function Apresentacao() {
+  const { settings } = useBar()
   const handlePrint = () => {
     window.print()
   }
@@ -40,8 +42,8 @@ export default function Apresentacao() {
                 </Badge>
               </h2>
               <p className="text-xs text-stone-400 mt-1">
-                Resumo oficial de funcionalidades do Rachide Bar formatado para apresentação a
-                clientes e parceiros.
+                Resumo oficial de funcionalidades do {settings.nomeFantasia} formatado para
+                apresentação a clientes e parceiros.
               </p>
             </div>
           </div>
@@ -72,7 +74,7 @@ export default function Apresentacao() {
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-100 print:text-neutral-900">
-                  Rachide <span className="text-amber-500 print:text-amber-700">Bar</span>
+                  {settings.nomeFantasia}
                 </h1>
                 <p className="text-sm font-semibold text-stone-300 print:text-neutral-700 mt-0.5">
                   Sistema de Gestão para Bares e Restaurantes
@@ -389,7 +391,7 @@ export default function Apresentacao() {
         {/* Rodapé do Documento */}
         <footer className="mt-10 pt-6 border-t border-[#44403C] flex items-center justify-between text-xs text-stone-400 print:text-neutral-500 print:border-neutral-300 print:mt-8">
           <div>
-            <strong>Rachide Bar</strong> — v1.4.1
+            <strong>{settings.nomeFantasia}</strong> — v1.4.1
           </div>
           <div>Sistema de Gestão para Bares e Restaurantes</div>
         </footer>

@@ -16,8 +16,17 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 
+// Escapa texto vindo do banco antes de inserir no HTML da janela de impressão
+const escapeHtmlText = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
 export default function PedidosOnlineManager() {
-  const { mesas } = useBar()
+  const { mesas, settings } = useBar()
   const { toast } = useToast()
   const [copiedMesa, setCopiedMesa] = useState<number | null>(null)
 
@@ -66,7 +75,7 @@ export default function PedidosOnlineManager() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Placa de Mesa ${numero} - Rachide Bar</title>
+          <title>Placa de Mesa ${numero}</title>
           <style>
             body {
               font-family: 'Segoe UI', Roboto, sans-serif;
@@ -130,7 +139,7 @@ export default function PedidosOnlineManager() {
         </head>
         <body>
           <div class="card">
-            <div class="logo">Rachide <span>Bar</span></div>
+            <div class="logo">${escapeHtmlText(settings?.nomeFantasia || 'Estabelecimento')}</div>
             <div style="font-size: 12px; color: #78716c;">Cardápio Digital & Pedido Direto</div>
             <div class="table-badge">MESA ${numero}</div>
             <div class="qr-box">

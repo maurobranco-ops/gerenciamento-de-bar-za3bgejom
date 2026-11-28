@@ -46,6 +46,7 @@ import { DetalhesContaMesa, PaymentMethod } from '@/types/bar'
 import { BarService } from '@/services/barService'
 import { SoundEffects } from '@/lib/soundEffects'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
+import { generatePixBRCode, isPixConfigured } from '@/lib/pix'
 
 interface CartItem {
   product: MenuItem
@@ -116,6 +117,47 @@ export default function PedidoOnline() {
 
   // Nome do estabelecimento (tenant) vindo do banco — nunca fixo no código
   const [nomeEstabelecimento, setNomeEstabelecimento] = useState<string>('')
+
+  // Dados Pix do tenant vindos das configurações do banco — nunca fixos no código
+  const [pixConfig, setPixConfig] = useState<{
+    pixChave?: string
+    pixBeneficiarioNome?: string
+    pixCidade?: string
+  } | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    BarService.fetchConfiguracoes()
+      .then((s) => {
+        if (ativo) {
+          setPixConfig({
+            pixChave: s.pixChave,
+            pixBeneficiarioNome: s.pixBeneficiarioNome,
+            pixCidade: s.pixCidade,
+          })
+        }
+      })
+      .catch((e) => console.warn('Não foi possível carregar dados Pix do estabelecimento:', e))
+    return () => {
+      ativo = false
+    }
+  }, [])
+
+  // Payload Pix (BR Code) gerado só com dados do tenant; null quando não configurado
+  let pixPayload: string | null = null
+  if (orderSuccess && isPixConfigured(pixConfig ?? undefined)) {
+    try {
+      pixPayload = generatePixBRCode({
+        pixKey: pixConfig?.pixChave || '',
+        merchantName: pixConfig?.pixBeneficiarioNome || '',
+        merchantCity: pixConfig?.pixCidade || '',
+        amount: orderSuccess.total,
+      })
+    } catch (e) {
+      console.warn('Payload Pix inválido:', e)
+      pixPayload = null
+    }
+  }
 
   // Acompanhamento do status do pedido em tempo real
   const [trackedItems, setTrackedItems] = useState<TrackedOrderItem[]>([])
@@ -1515,12 +1557,18 @@ export default function PedidoOnline() {
 
           {pixStatus !== 'paid' ? (
             <div className="space-y-4">
-              <div className="flex justify-center py-2">
-                <QRCodeSVG
-                  value={`00020126580014br.gov.bcb.pix0136rachidebar-online@pix.com.br520400005303986540${orderSuccess?.total.toFixed(2)}5802BR5915Rachide Bar Ltda`}
-                  size={190}
-                />
-              </div>
+              {pixPayload ? (
+                <div className="flex justify-center py-2">
+                  <QRCodeSVG value={pixPayload} size={190} />
+                </div>
+              ) : (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/50 text-xs text-amber-200"
+                >
+                  Configure a chave Pix em Configurações para receber pagamentos por Pix.
+                </div>
+              )}
 
               <div className="text-xs text-stone-300">
                 Aponte o app do seu banco para o QR Code acima ou simule a aprovação automática do
@@ -1560,7 +1608,7 @@ export default function PedidoOnline() {
               <div>
                 <h4 className="font-bold text-sm text-emerald-300">Pagamento Pix Confirmado!</h4>
                 <p className="text-xs text-stone-300 mt-1">
-                  Transação liquidada com sucesso via TEP Rachide. Seu comprovante foi emitido.
+                  Transação liquidada com sucesso. Seu comprovante foi emitido.
                 </p>
               </div>
               <Button

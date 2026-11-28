@@ -161,7 +161,7 @@ export default function FluxoCaixa() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `Fluxo_Caixa_Rachide_Bar_${preset}.csv`)
+    link.setAttribute('download', `Fluxo_Caixa_${preset}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

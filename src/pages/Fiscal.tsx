@@ -107,10 +107,10 @@ export default function Fiscal() {
           </style>
         </head>
         <body>
-          <div class="center bold" style="font-size: 14px;">${settings?.nomeFantasia || 'RACHIDE BAR'}</div>
-          <div class="center" style="font-size: 9px;">${settings?.razaoSocial || 'Rachide Bar & Petiscaria EIRELI'}</div>
-          <div class="center" style="font-size: 9px;">CNPJ: ${settings?.cnpj || '14.293.842/0001-84'} • IE: ${settings?.inscricaoEstadual || '114.293.842.110'}</div>
-          <div class="center" style="font-size: 9px;">${settings?.enderecoCompleto || 'Rua dos Boêmios, 142 - SP'}</div>
+          <div class="center bold" style="font-size: 14px;">${settings?.nomeFantasia || 'Estabelecimento'}</div>
+          <div class="center" style="font-size: 9px;">${settings?.razaoSocial || 'Configure os dados fiscais em Configurações'}</div>
+          <div class="center" style="font-size: 9px;">CNPJ: ${settings?.cnpj || 'Configure o CNPJ em Configurações'} • IE: ${settings?.inscricaoEstadual || 'Configure a IE em Configurações'}</div>
+          <div class="center" style="font-size: 9px;">${settings?.enderecoCompleto || 'Configure o endereço em Configurações'}</div>
           <div class="double-hr"></div>
           <div class="center bold">DANFE ${doc.type} - DOCUMENTO AUXILIAR</div>
           <div class="center" style="font-size: 9px;">(Ambiente de Homologação / Simulado)</div>
@@ -142,7 +142,7 @@ export default function Fiscal() {
 
     toast({
       title: `Documento ${doc.number} Enviado para Impressão`,
-      description: `DANFE 80mm gerado com dados cadastrais de ${settings?.nomeFantasia || 'Rachide Bar'}.`,
+      description: `DANFE 80mm gerado com dados cadastrais de ${settings?.nomeFantasia || 'Estabelecimento'}.`,
     })
   }
 
@@ -187,7 +187,7 @@ export default function Fiscal() {
             <span>Ver Plano Provedor SEFAZ-PB</span>
           </Button>
           <Badge className="bg-stone-800 text-stone-300 border-stone-700 text-xs px-3 py-1">
-            Série 001 • {settings?.nomeFantasia || 'Rachide Bar'}
+            Série 001 • {settings?.nomeFantasia || 'Configure os dados fiscais em Configurações'}
           </Badge>
         </div>
       </div>

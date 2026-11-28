@@ -29,9 +29,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { useBar } from '@/context/BarContext'
 
 export default function Usuarios() {
   const { user: currentAuthUser, role } = useAuth()
+  const { settings } = useBar()
   const { toast } = useToast()
 
   const [users, setUsers] = useState<ManagedUser[]>([])
@@ -141,7 +143,7 @@ export default function Usuarios() {
 
       toast({
         title: 'Usuário cadastrado!',
-        description: `${createNome} agora tem acesso ao Rachide Bar como ${createPerfil}.`,
+        description: `${createNome} agora tem acesso ao ${settings?.nomeFantasia || 'estabelecimento'} como ${createPerfil}.`,
       })
       setCreateModalOpen(false)
       setCreateNome('')

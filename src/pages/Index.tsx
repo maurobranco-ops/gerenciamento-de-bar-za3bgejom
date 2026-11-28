@@ -65,6 +65,7 @@ const PAYMENT_METHODS_DATA = [
 export default function Dashboard() {
   const {
     role,
+    settings,
     menuItems,
     comandas,
     cashMovements,
@@ -234,7 +235,7 @@ export default function Dashboard() {
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-stone-400 capitalize mt-1">
-              {todayDateString} • Rachide Bar & Petiscaria
+              {todayDateString} • {settings.nomeFantasia}
             </p>
           </div>
 
@@ -621,7 +622,7 @@ export default function Dashboard() {
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-stone-400 capitalize mt-1">
-              {todayDateString} • Rachide Bar & Petiscaria
+              {todayDateString} • {settings.nomeFantasia}
             </p>
           </div>
 
@@ -1138,7 +1139,7 @@ export default function Dashboard() {
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-stone-400 capitalize mt-1">
-            {todayDateString} • Rachide Bar & Petiscaria
+            {todayDateString} • {settings.nomeFantasia}
           </p>
         </div>
 
