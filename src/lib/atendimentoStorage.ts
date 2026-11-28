@@ -27,6 +27,38 @@ const cmdMesaKey = (tenantId: string, mesaNumero: number) =>
 const comandaIdPadraoDaMesa = (mesaNumero: number) =>
   `cmd-${mesaNumero < 10 ? `0${mesaNumero}` : mesaNumero}`
 
+// Tenant conhecido por mesa (preenchido na resolução anônima via RPC e nas
+// gravações com tenant explícito) e tenant em uso no momento (última gravação).
+const tenantPorMesa = new Map<number, string>()
+const tenantAtual: { v: string | null } = { v: null }
+
+/** Registra qual tenant pertence a uma mesa (chamado quando o tenant é resolvido). */
+export function registrarTenantDaMesa(
+  mesaNumero: number,
+  tenantId: string | null | undefined,
+): void {
+  if (!mesaNumero || mesaNumero <= 0 || !tenantId) return
+  tenantPorMesa.set(mesaNumero, tenantId)
+}
+
+/** Registra o tenant em uso no momento (última gravação com tenant explícito). */
+export function registrarTenantAtual(tenantId: string | null | undefined): void {
+  tenantAtual.v = tenantId || null
+}
+
+/**
+ * Resolve o tenant para leitura/escrita: explícito > conhecido da mesa > último usado.
+ * Sem tenant resolvido, NÃO lê nem grava nada — evita vazamento entre estabelecimentos.
+ */
+function resolveTenant(tenantId?: string | null, mesaNumero?: number): string | null {
+  if (tenantId) return tenantId
+  if (mesaNumero && mesaNumero > 0) {
+    const daMesa = tenantPorMesa.get(mesaNumero)
+    if (daMesa) return daMesa
+  }
+  return tenantAtual.v
+}
+
 function parsePayload(raw: string | null): AtendimentoAtivoLocal | null {
   if (!raw) return null
   try {
@@ -42,20 +74,25 @@ function parsePayload(raw: string | null): AtendimentoAtivoLocal | null {
 
 export const AtendimentoStorage = {
   /**
-   * Lê o atendimento ativo do tenant informado. Sem tenantId, não lê nada
-   * (o tenant é resolvido pela mesa via ?mesa=X antes de qualquer gravação).
+   * Lê o atendimento ativo do tenant informado. Sem tenant resolvível (explícito
+   * ou pela mesa), não lê nada — o tenant é resolvido pela mesa via ?mesa=X antes.
    */
-  get(tenantId?: string | null): AtendimentoAtivoLocal | null {
-    if (!tenantId) return null
+  get(tenantId?: string | null, mesaNumero?: number): AtendimentoAtivoLocal | null {
+    const tenant = resolveTenant(tenantId, mesaNumero)
+    if (!tenant) return null
     try {
-      const own = parsePayload(localStorage.getItem(atendimentoKey(tenantId)))
-      if (own) return own
+      const own = parsePayload(localStorage.getItem(atendimentoKey(tenant)))
+      if (own) {
+        registrarTenantDaMesa(own.mesaNumero, tenant)
+        return own
+      }
 
-      // Migração one-time da chave legada (sem tenant): adota dentro do escopo
-      // deste tenant; a validação ao vivo no banco descarta sessões de outro tenant.
+      // Migração one-time da chave legada (sem tenant): adota somente se a mesa
+      // conferir com o tenant resolvido; a validação ao vivo no banco (header
+      // x-mesa) descarta sessões de outro tenant.
       const legacy = parsePayload(localStorage.getItem(LEGACY_STORAGE_KEY))
-      if (legacy) {
-        localStorage.setItem(atendimentoKey(tenantId), JSON.stringify(legacy))
+      if (legacy && (!mesaNumero || legacy.mesaNumero === mesaNumero)) {
+        localStorage.setItem(atendimentoKey(tenant), JSON.stringify(legacy))
         return legacy
       }
       return null
@@ -69,8 +106,10 @@ export const AtendimentoStorage = {
     data: { mesaNumero: number; comandaId?: string; clienteNome?: string },
   ): void {
     if (!tenantId) return
+    registrarTenantDaMesa(data.mesaNumero, tenantId)
+    registrarTenantAtual(tenantId)
     try {
-      const existing = this.get(tenantId)
+      const existing = this.get(tenantId, data.mesaNumero)
       const comandaId =
         data.comandaId || existing?.comandaId || comandaIdPadraoDaMesa(data.mesaNumero)
       const agora = new Date().toISOString()
@@ -87,54 +126,46 @@ export const AtendimentoStorage = {
       localStorage.setItem(cmdMesaKey(tenantId, data.mesaNumero), comandaId)
       // Legado (sem tenant) sai de circulação depois da migração
       localStorage.removeItem(LEGACY_STORAGE_KEY)
+      localStorage.removeItem(legacyCmdKeyForMesa(data.mesaNumero))
     } catch {
       // Ignora falhas de storage (ex: modo privado restrito)
     }
   },
 
-  clear(tenantId?: string | null): void {
+  clear(tenantId?: string | null, mesaNumero?: number): void {
+    const tenant = resolveTenant(tenantId, mesaNumero)
     try {
-      if (tenantId) {
-        localStorage.removeItem(atendimentoKey(tenantId))
+      if (tenant) {
+        localStorage.removeItem(atendimentoKey(tenant))
       }
       localStorage.removeItem(LEGACY_STORAGE_KEY)
-    } catch {
-      // noop
-    }
-  },
-
-  clearComandaMesa(tenantId?: string | null, mesaNumero?: number): void {
-    if (!mesaNumero) return
-    try {
-      if (tenantId) {
-        localStorage.removeItem(cmdMesaKey(tenantId, mesaNumero))
+      if (mesaNumero && mesaNumero > 0) {
+        localStorage.removeItem(legacyCmdKeyForMesa(mesaNumero))
       }
-      localStorage.removeItem(legacyCmdKeyForMesa(mesaNumero))
     } catch {
-      // noop
+      // Ignora falhas de storage
     }
   },
 
-  /**
-   * Retorna a comanda esperada para uma mesa dentro do tenant.
-   * Sem tenantId ainda (resolução em curso), lê apenas a chave legada.
-   */
   getComandaIdForMesa(tenantId: string | null | undefined, mesaNumero: number): string {
-    try {
-      if (tenantId) {
-        const existing = this.get(tenantId)
-        if (existing && existing.mesaNumero === mesaNumero && existing.comandaId) {
-          return existing.comandaId
-        }
-        const perMesa = localStorage.getItem(cmdMesaKey(tenantId, mesaNumero))
-        if (perMesa) return perMesa
+    const tenant = resolveTenant(tenantId, mesaNumero)
+    if (tenant) {
+      try {
+        const v = localStorage.getItem(cmdMesaKey(tenant, mesaNumero))
+        if (v) return v
+        const att = parsePayload(localStorage.getItem(atendimentoKey(tenant)))
+        if (att && att.mesaNumero === mesaNumero && att.comandaId) return att.comandaId
+      } catch {
+        /* segue para fallback */
       }
-      // Compat com chave legada (sem tenant) — a comanda é validada no banco via x-mesa
-      const legacy = localStorage.getItem(legacyCmdKeyForMesa(mesaNumero))
-      if (legacy) return legacy
-      return comandaIdPadraoDaMesa(mesaNumero)
-    } catch {
-      return comandaIdPadraoDaMesa(mesaNumero)
     }
+    // Fallback legado (chave sem tenant) para aparelhos que abriram antes da migração
+    try {
+      const legado = localStorage.getItem(legacyCmdKeyForMesa(mesaNumero))
+      if (legado) return legado
+    } catch {
+      /* ignore */
+    }
+    return comandaIdPadraoDaMesa(mesaNumero)
   },
 }
