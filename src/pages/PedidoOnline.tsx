@@ -501,11 +501,12 @@ export default function PedidoOnline() {
         // resolveTenantAnonimo conclui. Se o tenant resolver depois, a busca
         // disparada aqui já sai com o header ativo.
         if (mesaParam > 0) {
+          // Usa o valor RETORNADO pela resolução (não o estado React, ainda null na 1ª execução)
           const tenantId = await resolveTenantAnonimo(mesaParam, tenantParam)
-          if (tenantId) {
-            setTenantIdMesa(tenantId)
-            setTenantAnonimoAtual(tenantId)
-          }
+          // Registra mesa + tenant na sessão global ANTES de qualquer SELECT
+          setMesaAnonimaAtual(mesaParam)
+          setTenantAnonimoAtual(tenantId)
+          if (tenantId) setTenantIdMesa(tenantId)
         }
         setLoading(true)
         const [prodRes, configRes] = await Promise.all([

@@ -27,6 +27,7 @@ import {
 import { QRScanner } from './QRScanner'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
 import { resolveTenantAnonimo } from '@/lib/tenantAnonimo'
+import { setTenantAnonimoAtual } from '@/lib/supabase/globalHeaders'
 import { supabase } from '@/lib/supabase/client'
 import { BarService } from '@/services/barService'
 
@@ -97,6 +98,8 @@ export function MesaSelector({
     resolveTenantAnonimo(initialMesaParam, tenantDaUrl).then((tenantId) => {
       if (isMounted && tenantId) {
         setTenantIdMesa(tenantId)
+        // Header x-tenant na sessão global: leituras anônimas seguintes casam tenant + mesa
+        setTenantAnonimoAtual(tenantId)
         if (propAtendimentoAtivo === undefined) {
           setActiveSession(AtendimentoStorage.get(tenantId, initialMesaParam))
         }
@@ -125,7 +128,8 @@ export function MesaSelector({
     return () => {
       isMounted = false
     }
-  }, [initialMesaParam])
+    // Refaz a leitura quando o tenant da mesa resolve (header x-tenant já registrado)
+  }, [initialMesaParam, tenantIdMesa])
 
   const nomeBar = nomeEstabelecimento || 'Bar'
 
