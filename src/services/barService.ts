@@ -1300,13 +1300,25 @@ export const BarService = {
 
   // --- CONFIGURAÇÕES DO BAR ---
   /**
-   * Configurações do bar. O tenant resolve-se pelo header global x-mesa
-   * (injetado em src/lib/supabase/client.ts quando o cliente anônimo está no
-   * /pedido?mesa=X) — o parâmetro `mesaAnonima` documenta/qualifica o contexto
-   * anon e garante o caminho de marca do estabelecimento pela mesa.
+   * Configurações do bar, sempre no contexto do tenant certo:
+   * - autenticado: `tenantId` (estabelecimentoAtivo do useAuth) — a RLS
+   *   (configuracoes_bar_select_all) devolve a linha do próprio tenant.
+   * - anônimo no /pedido: `mesaAnonima` — a RLS resolve pelo header x-mesa.
+   * NUNCA lê seleção antiga do localStorage (TenantStorage) — a escolha do
+   * tenant é do chamador, vinda do perfil do usuário logado.
    */
-  async fetchConfiguracoes(mesaAnonima?: number | null): Promise<BarSettings> {
-    void mesaAnonima
+  async fetchConfiguracoes(opts?: {
+    tenantId?: string | null
+    mesaAnonima?: number | null
+  }): Promise<BarSettings> {
+    const tenantId = opts?.tenantId ?? null
+    const mesaAnonima = opts?.mesaAnonima ?? null
+
+    if (!tenantId && !(mesaAnonima && mesaAnonima > 0)) {
+      console.warn('[barService] fetchConfiguracoes chamado sem tenant — retornando padrões')
+      return DEFAULT_BAR_SETTINGS
+    }
+
     const { data, error } = await db
       .from('configuracoes_bar')
       .select('*')
@@ -1320,7 +1332,8 @@ export const BarService = {
 
     if (!data) return DEFAULT_BAR_SETTINGS
 
-    // Cor de marca e logo vêm SEMPRE do estabelecimento logado (multi-tenant), não das configurações locais
+    // Cor de marca e logo vêm SEMPRE do estabelecimento do contexto
+    // (multi-tenant), não das configurações locais
     let corPrimaria: string | null = null
     let logoUrl: string | null = null
     try {
@@ -1333,21 +1346,14 @@ export const BarService = {
           .maybeSingle()
         corPrimaria = est?.cor_primaria ?? null
         logoUrl = est?.logo_url ?? null
-      } else {
-        const { data: perfil } = await db
-          .from('perfis_usuarios')
-          .select('tenant_id')
-          .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+      } else if (tenantId) {
+        const { data: est } = await db
+          .from('estabelecimentos')
+          .select('cor_primaria, logo_url')
+          .eq('id', tenantId)
           .maybeSingle()
-        if (perfil?.tenant_id) {
-          const { data: est } = await db
-            .from('estabelecimentos')
-            .select('cor_primaria, logo_url')
-            .eq('id', perfil.tenant_id)
-            .maybeSingle()
-          corPrimaria = est?.cor_primaria ?? null
-          logoUrl = est?.logo_url ?? null
-        }
+        corPrimaria = est?.cor_primaria ?? null
+        logoUrl = est?.logo_url ?? null
       }
     } catch (e) {
       console.warn('Não foi possível carregar marca do estabelecimento:', e)

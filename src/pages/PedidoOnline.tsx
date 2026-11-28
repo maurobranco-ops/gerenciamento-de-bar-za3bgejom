@@ -163,7 +163,7 @@ export default function PedidoOnline() {
   useEffect(() => {
     let ativo = true
     // Anon no /pedido: envia o header x-mesa para a RLS resolver o tenant correto
-    BarService.fetchConfiguracoes(mesaParam > 0 ? mesaParam : null)
+    BarService.fetchConfiguracoes({ mesaAnonima: mesaParam > 0 ? mesaParam : null })
       .then((s) => {
         if (ativo) {
           setPixConfig({

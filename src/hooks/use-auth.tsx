@@ -54,10 +54,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [estabelecimentos, setEstabelecimentos] = useState<Estabelecimento[]>([])
+  // O estabelecimentoAtivo NÃO inicia lendo o TenantStorage: a chave é
+  // compartilhada entre usuários do mesmo aparelho e pode apontar para outro
+  // estabelecimento. Ele é definido pelo perfil do usuário (ou pela escolha
+  // explicita do admin) — nunca pela seleção antiga de outra sessão.
   const [estabelecimentoAtivo, setEstabelecimentoAtivoState] = useState<Estabelecimento | null>(
-    () => {
-      return TenantStorage.get()
-    },
+    null,
   )
 
   // Retorna o perfil carregado (ou null) para quem chamou — o signIn precisa
@@ -210,6 +212,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // recarregamentos de página (e pré-selecionar o seletor da tela de login).
   useEffect(() => {
     if (estabelecimentos.length === 0) return
+    // Enquanto a sessão/perfil carregam, NADA é decidido aqui: o ramo "sem
+    // usuário" abaixo só vale quando o carregamento terminou de verdade
+    // (usuário realmente deslogado). Sem isso, no primeiro paint o estado
+    // transitório (user=null, loading=true) restaurava a seleção salva do
+    // TenantStorage — seleção que pode ser de OUTRO usuário do mesmo aparelho.
+    if (loading) return
     if (user && profile) {
       if (profile.tenant_id) {
         // Usuário de um estabelecimento: ativa o dele, vindo do perfil.
@@ -241,7 +249,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (saved && estabelecimentos.some((e) => e.id === saved.id)) {
       if (estabelecimentoAtivo?.id !== saved.id) setEstabelecimentoAtivoState(saved)
     }
-  }, [user, profile, estabelecimentos, estabelecimentoAtivo])
+  }, [user, profile, estabelecimentos, estabelecimentoAtivo, loading])
 
   const setEstabelecimentoAtivo = (e: Estabelecimento | null) => {
     setEstabelecimentoAtivoState(e)

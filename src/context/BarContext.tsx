@@ -25,6 +25,7 @@ import {
 import { useToast } from '../hooks/use-toast'
 import { BarService, SaveProductPayload, DEFAULT_BAR_SETTINGS } from '../services/barService'
 import { useAuth } from '../hooks/use-auth'
+import { Estabelecimento } from '../types/tenant'
 import { SoundEffects } from '../lib/soundEffects'
 import { printKitchenTicket } from '../lib/thermalPrinter'
 
@@ -132,7 +133,7 @@ const BarContext = createContext<BarContextType | undefined>(undefined)
 
 export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast()
-  const { user, role: authRole } = useAuth()
+  const { user, role: authRole, loading: authLoading, estabelecimentoAtivo } = useAuth()
 
   // Limpeza imediata do cache local legado de perfis no mount
   useEffect(() => {
@@ -185,69 +186,90 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUnreadOnlineOrdersCount(0)
   }
 
-  // Carga inicial do Supabase
-  const loadDataFromSupabase = useCallback(async () => {
-    console.log('[BarContext] loadDataFromSupabase: iniciando carga de dados')
-    try {
-      setIsSyncing(true)
-      const [
-        fetchedMesas,
-        fetchedProdutosAtivos,
-        fetchedAllProdutos,
-        fetchedComandas,
-        fetchedStockMovs,
-        fetchedCashDays,
-        fetchedCashMovs,
-        fetchedFiscalDocs,
-        fetchedFila,
-        fetchedConfig,
-      ] = await Promise.all([
-        BarService.fetchMesas().catch(() => []),
-        BarService.fetchProdutos(false).catch(() => INITIAL_MENU_ITEMS),
-        BarService.fetchProdutos(true).catch(() => INITIAL_MENU_ITEMS),
-        BarService.fetchComandas().catch(() => INITIAL_TABLES),
-        BarService.fetchStockMovements().catch(() => INITIAL_STOCK_MOVEMENTS),
-        BarService.fetchCashDays().catch(() => INITIAL_CASH_DAYS),
-        BarService.fetchCashMovements().catch(() => INITIAL_CASH_MOVEMENTS),
-        BarService.fetchFiscalDocs().catch(() => INITIAL_FISCAL_DOCS),
-        BarService.fetchFilaCozinha().catch(() => []),
-        BarService.fetchConfiguracoes().catch(() => DEFAULT_BAR_SETTINGS),
-      ])
+  // Carga inicial do Supabase — SEMPRE no contexto do tenant ativo.
+  const loadDataFromSupabase = useCallback(
+    async (tenantId: string | null) => {
+      console.log(
+        '[BarContext] loadDataFromSupabase: iniciando carga de dados',
+        tenantId ? `para tenant ${tenantId}` : '(sem tenant resolvido)',
+      )
+      try {
+        setIsSyncing(true)
+        const [
+          fetchedMesas,
+          fetchedProdutosAtivos,
+          fetchedAllProdutos,
+          fetchedComandas,
+          fetchedStockMovs,
+          fetchedCashDays,
+          fetchedCashMovs,
+          fetchedFiscalDocs,
+          fetchedFila,
+          fetchedConfig,
+        ] = await Promise.all([
+          BarService.fetchMesas().catch(() => []),
+          BarService.fetchProdutos(false).catch(() => INITIAL_MENU_ITEMS),
+          BarService.fetchProdutos(true).catch(() => INITIAL_MENU_ITEMS),
+          BarService.fetchComandas().catch(() => INITIAL_TABLES),
+          BarService.fetchStockMovements().catch(() => INITIAL_STOCK_MOVEMENTS),
+          BarService.fetchCashDays().catch(() => INITIAL_CASH_DAYS),
+          BarService.fetchCashMovements().catch(() => INITIAL_CASH_MOVEMENTS),
+          BarService.fetchFiscalDocs().catch(() => INITIAL_FISCAL_DOCS),
+          BarService.fetchFilaCozinha().catch(() => []),
+          BarService.fetchConfiguracoes({ tenantId }).catch(() => DEFAULT_BAR_SETTINGS),
+        ])
 
-      if (fetchedMesas.length > 0) setMesas(fetchedMesas)
-      if (fetchedProdutosAtivos.length > 0) setMenuItems(fetchedProdutosAtivos)
-      if (fetchedAllProdutos.length > 0) setAllProducts(fetchedAllProdutos)
-      if (fetchedComandas.length > 0) setComandas(fetchedComandas)
-      if (fetchedStockMovs.length > 0) setStockMovements(fetchedStockMovs)
-      if (fetchedCashDays.length > 0) setCashDays(fetchedCashDays)
-      if (fetchedCashMovs.length > 0) setCashMovements(fetchedCashMovs)
-      if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
-      setFilaCozinha(fetchedFila)
-      if (fetchedConfig) setSettings(fetchedConfig)
-      console.log('[BarContext] loadDataFromSupabase: dados carregados', {
-        mesas: fetchedMesas.length,
-        produtos: fetchedProdutosAtivos.length,
-        comandas: fetchedComandas.length,
-        filaCozinha: fetchedFila.length,
-      })
-    } catch (err) {
-      console.error('[BarContext] Falha ao sincronizar dados com o Supabase:', err)
-      toast({
-        variant: 'destructive',
-        title: 'Conexão Supabase',
-        description: 'Usando cache local enquanto restabelece sincronização com o banco.',
-      })
-    } finally {
-      setIsLoading(false)
-      setIsSyncing(false)
-      console.log('[BarContext] loadDataFromSupabase: concluído — isLoading=false')
-    }
-  }, [toast])
+        if (fetchedMesas.length > 0) setMesas(fetchedMesas)
+        if (fetchedProdutosAtivos.length > 0) setMenuItems(fetchedProdutosAtivos)
+        if (fetchedAllProdutos.length > 0) setAllProducts(fetchedAllProdutos)
+        if (fetchedComandas.length > 0) setComandas(fetchedComandas)
+        if (fetchedStockMovs.length > 0) setStockMovements(fetchedStockMovs)
+        if (fetchedCashDays.length > 0) setCashDays(fetchedCashDays)
+        if (fetchedCashMovs.length > 0) setCashMovements(fetchedCashMovs)
+        if (fetchedFiscalDocs.length > 0) setFiscalDocs(fetchedFiscalDocs)
+        setFilaCozinha(fetchedFila)
+        if (fetchedConfig) setSettings(fetchedConfig)
+        console.log('[BarContext] loadDataFromSupabase: dados carregados', {
+          mesas: fetchedMesas.length,
+          produtos: fetchedProdutosAtivos.length,
+          comandas: fetchedComandas.length,
+          filaCozinha: fetchedFila.length,
+        })
+      } catch (err) {
+        console.error('[BarContext] Falha ao sincronizar dados com o Supabase:', err)
+        toast({
+          variant: 'destructive',
+          title: 'Conexão Supabase',
+          description: 'Usando cache local enquanto restabelece sincronização com o banco.',
+        })
+      } finally {
+        setIsLoading(false)
+        setIsSyncing(false)
+        console.log('[BarContext] loadDataFromSupabase: concluído — isLoading=false')
+      }
+    },
+    [toast],
+  )
 
+  // O estabelecimentoAtivo do useAuth é a ÚNICA fonte do tenant deste contexto.
+  // Nada é carregado sem saber o tenant: enquanto o perfil/estabelecimento
+  // carregam, ficamos em isLoading — os SELECTs anônimos por header x-mesa
+  // (mesa da URL) não são afetados, pois o /pedido não monta este provider.
   useEffect(() => {
-    console.log('[BarContext] Montando BarProvider — dispara carga inicial de dados')
-    loadDataFromSupabase()
-  }, [loadDataFromSupabase])
+    if (authLoading) return
+    // Admin da plataforma sem estabelecimento escolhido: nada a carregar ainda.
+    if (!estabelecimentoAtivo) {
+      setIsLoading(false)
+      return
+    }
+    console.log(
+      '[BarContext] Carregando dados do estabelecimentoAtivo:',
+      estabelecimentoAtivo.nome,
+      estabelecimentoAtivo.id,
+    )
+    setIsLoading(true)
+    loadDataFromSupabase(estabelecimentoAtivo.id)
+  }, [authLoading, estabelecimentoAtivo?.id, loadDataFromSupabase])
 
   // Polling leve para Fila de Cozinha e Comandas a cada 6 segundos se o usuário estiver ativo
   useEffect(() => {
@@ -1405,7 +1427,7 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role,
         isLoading,
         isSyncing,
-        reloadAllData: loadDataFromSupabase,
+        reloadAllData: () => loadDataFromSupabase(estabelecimentoAtivo?.id ?? null),
         mesas,
         addMesa,
         updateMesaCapacidade,
