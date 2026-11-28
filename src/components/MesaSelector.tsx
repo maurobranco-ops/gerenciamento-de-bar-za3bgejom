@@ -167,19 +167,24 @@ export function MesaSelector({
         const comandaId =
           stored.comandaId ||
           `cmd-${stored.mesaNumero < 10 ? `0${stored.mesaNumero}` : stored.mesaNumero}`
-        const { data: cmd, error } = await supabase
+        // `comanda_itens(count)` quebra a tipagem gerada do Supabase (TS2345);
+        // conta os itens numa segunda consulta leve.
+        const { data: cmd, error } = await (supabase as any)
           .from('comandas')
-          .select('id, mesa_numero, status, total, comanda_itens(count)')
+          .select('id, mesa_numero, status, total')
           .eq('id', comandaId)
           .maybeSingle()
 
         if (!error && cmd && (cmd.status === 'Ocupada' || cmd.status === 'Aguardando Pagamento')) {
           if (isMounted) {
             setSessaoValidaNoBanco(true)
-            const countItens = (cmd as any).comanda_itens?.[0]?.count || 0
+            const { count: countItens } = await supabase
+              .from('comanda_itens')
+              .select('id', { count: 'exact', head: true })
+              .eq('comanda_id', comandaId)
             setDetalhesComandaSessao({
               total: Number(cmd.total || 0),
-              itensCount: countItens,
+              itensCount: countItens || 0,
             })
           }
         } else {

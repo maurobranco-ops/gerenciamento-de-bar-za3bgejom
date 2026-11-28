@@ -25,6 +25,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
+import { setMesaAnonimaAtual } from '@/lib/supabase/globalHeaders'
 import { MenuItem, ProductCategory, TableRecord } from '@/types/bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,7 +48,6 @@ import { BarService } from '@/services/barService'
 import { SoundEffects } from '@/lib/soundEffects'
 import { AtendimentoStorage, AtendimentoAtivoLocal } from '@/lib/atendimentoStorage'
 import { resolveTenantAnonimo } from '@/lib/tenantAnonimo'
-import { setMesaAnonimaAtual } from '@/lib/supabase/client'
 import { generatePixBRCode, isPixConfigured } from '@/lib/pix'
 
 interface CartItem {

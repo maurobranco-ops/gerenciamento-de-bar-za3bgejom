@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { installXMesaFetch } from '@/lib/supabase/globalHeaders'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
@@ -29,6 +30,9 @@ import PlanoNFCe from './pages/PlanoNFCe'
 import Administracao from './pages/Administracao'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
+
+// Header x-mesa em todas as requisições Supabase do /pedido anônimo (RLS por mesa)
+installXMesaFetch()
 
 console.log('[App] Módulo carregado — montando árvore da aplicação')
 
