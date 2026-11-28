@@ -25,7 +25,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { setMesaAnonimaAtual } from '@/lib/supabase/globalHeaders'
+import { setMesaAnonimaAtual, setTenantAnonimoAtual } from '@/lib/supabase/globalHeaders'
 import { MenuItem, ProductCategory, TableRecord } from '@/types/bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,10 +65,17 @@ export default function PedidoOnline() {
     ? parseInt(mesaNumero, 10)
     : parseInt(searchParams.get('mesa') || '0', 10)
 
+  // Tenant codificado no QR novo: /pedido?t=<uuid>&mesa=X. O par (t, mesa) é o
+  // que impede a colisão de número de mesa entre estabelecimentos.
+  const tenantParam = searchParams.get('t')
+
   // Injeção síncrona do header x-mesa (antes dos efeitos dos componentes filhos,
   // ex.: MesaSelector) para as políticas RLS anon resolverem o tenant pela mesa.
   if (!isNaN(mesaParam) && mesaParam > 0) {
     setMesaAnonimaAtual(mesaParam)
+  }
+  if (tenantParam) {
+    setTenantAnonimoAtual(tenantParam)
   }
 
   const [mesaNum, setMesaNum] = useState<number>(!isNaN(mesaParam) ? mesaParam : 0)
@@ -136,6 +143,12 @@ export default function PedidoOnline() {
   // Tenant do cliente anônimo (resolvido pela mesa da URL via RPC) e mesa corrente
   // para o header x-mesa — os SELECTs diretos do /pedido dependem disso p/ RLS.
   const [tenantIdMesa, setTenantIdMesa] = useState<string | null>(null)
+  // Banner de confirmação do estabelecimento (QR novo tem ?t=; placas antigas não)
+  const [veioDoQrComTenant, setVeioDoQrComTenant] = useState<boolean>(() => {
+    const t = new URLSearchParams(window.location.search).get('t')
+    return Boolean(t && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t))
+  })
+  const [bannerFechado, setBannerFechado] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -144,9 +157,12 @@ export default function PedidoOnline() {
       return
     }
     setMesaAnonimaAtual(mesaParam)
-    resolveTenantAnonimo(mesaParam).then((tenantId) => {
+    resolveTenantAnonimo(mesaParam, tenantParam).then((tenantId) => {
       if (ativo && tenantId) {
         setTenantIdMesa(tenantId)
+        // Header x-tenant: as políticas anon de configuracoes_bar/mesas casam
+        // tenant + mesa (novo QR) — sem ele o SELECT anon pode voltar vazio.
+        setTenantAnonimoAtual(tenantId)
         // Atualiza a sessão local agora que o tenant ficou conhecido (o init
         // síncrono abaixo só conseguiu ler a chave legada)
         setAtendimentoAtivo(AtendimentoStorage.get(tenantId, mesaParam))
@@ -155,10 +171,11 @@ export default function PedidoOnline() {
     })
     return () => {
       ativo = false
-      // Saiu do /pedido: não envia mais o header x-mesa em nenhuma requisição
+      // Saiu do /pedido: não envia mais os headers x-mesa/x-tenant em nenhuma requisição
       setMesaAnonimaAtual(null)
+      setTenantAnonimoAtual(null)
     }
-  }, [mesaParam])
+  }, [mesaParam, tenantParam])
 
   useEffect(() => {
     let ativo = true
@@ -1077,6 +1094,34 @@ export default function PedidoOnline() {
                 </span>
               </div>
             </div>
+
+            {/* Banner de confirmação do estabelecimento (QR novo codifica ?t=<uuid>) */}
+            {!isDelivery && veioDoQrComTenant && !bannerFechado && nomeEstabelecimento && (
+              <div
+                role="status"
+                className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/50 shadow-lg flex items-start justify-between gap-3"
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-emerald-200 leading-snug">
+                      Você está no {nomeEstabelecimento} — Mesa {mesaNum}
+                    </p>
+                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
+                      Confirme que este é o estabelecimento certo antes de pedir.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar aviso de confirmação do estabelecimento"
+                  onClick={() => setBannerFechado(true)}
+                  className="text-emerald-300/70 hover:text-emerald-200 p-1 shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* FLUXO PEDIR A CONTA (EXCLUSIVO PARA CLIENTES EM MESA) */}
             {!isDelivery && mesaNum > 0 && (

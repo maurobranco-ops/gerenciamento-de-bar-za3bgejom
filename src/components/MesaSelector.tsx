@@ -41,6 +41,8 @@ interface MesaSelectorProps {
   onContinuarAtendimento?: (mesaNumero: number) => void
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function MesaSelector({
   mesas,
   loadingMesas,
@@ -91,7 +93,8 @@ export function MesaSelector({
   useEffect(() => {
     let isMounted = true
     if (!initialMesaParam || initialMesaParam <= 0) return
-    resolveTenantAnonimo(initialMesaParam).then((tenantId) => {
+    const tenantDaUrl = new URLSearchParams(window.location.search).get('t')
+    resolveTenantAnonimo(initialMesaParam, tenantDaUrl).then((tenantId) => {
       if (isMounted && tenantId) {
         setTenantIdMesa(tenantId)
         if (propAtendimentoAtivo === undefined) {
@@ -125,6 +128,12 @@ export function MesaSelector({
   }, [initialMesaParam])
 
   const nomeBar = nomeEstabelecimento || 'Bar'
+
+  // Banner de confirmação do estabelecimento (QR novo codifica ?t=<uuid>)
+  const [veioDoQrComTenant] = useState<boolean>(() => {
+    const t = new URLSearchParams(window.location.search).get('t')
+    return Boolean(t && UUID_RE.test(t))
+  })
 
   // Flag para disparar seleção automática por QR/parâmetro apenas uma vez
   const autoSelectTriggeredRef = React.useRef(false)
@@ -442,6 +451,25 @@ export function MesaSelector({
             cozinha.
           </p>
         </div>
+
+        {/* Banner de confirmação do estabelecimento (QR novo codifica ?t=<uuid>) */}
+        {veioDoQrComTenant && nomeEstabelecimento && (
+          <div
+            role="status"
+            className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/50 shadow-lg flex items-start gap-2.5"
+          >
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <p className="text-sm font-black text-emerald-200 leading-snug">
+              {initialMesaParam ? (
+                <>
+                  Você está no {nomeEstabelecimento} — Mesa {initialMesaParam}
+                </>
+              ) : (
+                <>Você está no {nomeEstabelecimento}</>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Card de Destaque: Continuar meu atendimento (quando houver comanda aberta deste aparelho) */}
         {sessaoValidaNoBanco && activeSession && (

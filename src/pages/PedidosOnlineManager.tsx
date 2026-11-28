@@ -11,6 +11,7 @@ import {
   Download,
 } from 'lucide-react'
 import { useBar } from '@/context/BarContext'
+import { useAuth } from '@/hooks/use-auth'
 import { QRCodeSVG, generateQRCodeDataURL } from '@/components/QRCodeSVG'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +28,7 @@ const escapeHtmlText = (value: string): string =>
 
 export default function PedidosOnlineManager() {
   const { mesas, settings } = useBar()
+  const { estabelecimentoAtivo } = useAuth()
   const { toast } = useToast()
   const [copiedMesa, setCopiedMesa] = useState<number | null>(null)
 
@@ -39,12 +41,18 @@ export default function PedidosOnlineManager() {
   // Garante ordenação das mesas
   const sortedMesas = [...mesas].sort((a, b) => a.numero - b.numero)
 
-  // Monta URL pública com query param /pedido?mesa=X
+  // Monta URL pública do QR: /pedido?t=<uuid do estabelecimento>&mesa=X.
+  // O ?t= é o que garante o isolamento multi-tenant — mesa 4 do Rachide e mesa 4
+  // do R Burguer não colidem (a RPC casa m.tenant_id = t AND m.numero = mesa).
   const getTablePublicUrl = (numero: number) => {
     if (!numero || numero <= 0) {
-      return `${publicBaseUrl}/pedido`
+      return estabelecimentoAtivo?.id
+        ? `${publicBaseUrl}/pedido?t=${estabelecimentoAtivo.id}`
+        : `${publicBaseUrl}/pedido`
     }
-    return `${publicBaseUrl}/pedido?mesa=${numero}`
+    return estabelecimentoAtivo?.id
+      ? `${publicBaseUrl}/pedido?t=${estabelecimentoAtivo.id}&mesa=${numero}`
+      : `${publicBaseUrl}/pedido?mesa=${numero}`
   }
 
   const handleCopyLink = (numero: number) => {
