@@ -196,7 +196,7 @@ export default function Configuracoes() {
             </div>
             <div>
               <h2 className="text-xl font-black text-stone-100 flex items-center gap-2">
-                Configurações Gerais do Rachide Bar
+                {`Configurações Gerais do ${settings?.nomeFantasia ?? 'Estabelecimento'}`}
                 <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/40 text-xs font-bold">
                   Exclusivo Gerente
                 </Badge>
@@ -453,7 +453,7 @@ export default function Configuracoes() {
               </div>
               <div>
                 <h3 className="font-bold text-base text-stone-100 flex items-center gap-2">
-                  Recebimento Pix do Rachide Bar (BR Code Real)
+                  {`Recebimento Pix do ${settings?.nomeFantasia ?? 'Estabelecimento'} (BR Code Real)`}
                   <Badge className="bg-teal-500/15 text-teal-300 border-teal-500/30 text-[10px]">
                     Banco Central
                   </Badge>
@@ -493,7 +493,7 @@ export default function Configuracoes() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, pixBeneficiarioNome: e.target.value }))
                 }
-                placeholder="Ex: Rachide Bar"
+                placeholder="Ex: nome do titular"
                 maxLength={25}
                 className="bg-[#1C1917] border-[#44403C] text-stone-100 text-xs"
                 required
