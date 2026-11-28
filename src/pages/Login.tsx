@@ -1,20 +1,13 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Beer, Mail, Lock, Loader2, ArrowRight, Building2 } from 'lucide-react'
+import { Beer, Mail, Lock, Loader2, ArrowRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
 
 export default function Login() {
-  const { signIn, estabelecimentos, estabelecimentoAtivo, setEstabelecimentoAtivo } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -118,43 +111,10 @@ export default function Login() {
             </div>
           )}
 
-          {/* Seleção de estabelecimento (tenant) — nunca uma marca do app */}
-          <div className="space-y-1.5">
-            <Label htmlFor="estabelecimento-login" className="text-xs text-stone-300 font-semibold">
-              Estabelecimento
-            </Label>
-            <div className="relative">
-              <Building2 className="w-4 h-4 absolute left-3 top-3 text-stone-500" />
-              <Select
-                value={estabelecimentoAtivo?.id ?? ''}
-                onValueChange={(id) => {
-                  const found = estabelecimentos.find((e) => e.id === id)
-                  if (found) setEstabelecimentoAtivo(found)
-                }}
-              >
-                <SelectTrigger
-                  id="estabelecimento-login"
-                  aria-label="Selecionar estabelecimento"
-                  className="w-full pl-9 bg-[#1C1917] border-[#44403C] text-stone-100 text-sm focus:border-amber-500"
-                >
-                  <SelectValue placeholder="Selecione o estabelecimento" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#292524] border-[#44403C] text-stone-100">
-                  {estabelecimentos.map((e) => (
-                    <SelectItem key={e.id} value={e.id} className="focus:bg-stone-700">
-                      {e.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {estabelecimentos.length === 0 && (
-              <p className="text-[10px] text-stone-500">
-                Nenhum estabelecimento disponível no momento.
-              </p>
-            )}
-          </div>
-
+          {/* Sem seleção de estabelecimento aqui: com as políticas RLS da
+              v0.0.59 a consulta anônima volta vazia e a tela caía no fallback
+              genérico "Estabelecimento". O estabelecimento ativo pós-login vem
+              do perfil.tenant_id (use-auth) — nada para escolher antes. */}
           <div className="space-y-1.5">
             <Label htmlFor="email-login" className="text-xs text-stone-300 font-semibold">
               E-mail de acesso

@@ -191,10 +191,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user?.id])
 
-  // Carrega estabelecimentos uma vez na inicialização e quando o login muda
-  // (login precisa da lista; consulta pública de tenants ativos).
+  // A lista de estabelecimentos é carregada SOMENTE com o usuário autenticado:
+  // com as políticas RLS da v0.0.59 a consulta anônima volta vazia, e o login
+  // caía no fallback genérico "Estabelecimento". Na tela de login o usuário
+  // informa apenas credenciais — a lista é buscada após o signIn (dentro dele,
+  // já autenticado) e em recarregamentos de página com sessão ativa.
   useEffect(() => {
-    fetchEstabelecimentos()
+    if (user?.id) {
+      fetchEstabelecimentos()
+    } else {
+      setEstabelecimentos([])
+    }
   }, [user?.id])
 
   // Regra do estabelecimento ativo: quem está LOGADO com tenant segue SEMPRE o
