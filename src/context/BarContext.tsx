@@ -342,7 +342,19 @@ export const BarProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSettings = async (newSettings: Partial<BarSettings>): Promise<boolean> => {
     if (!checkRoleAccess(['Gerente'], 'alterar configurações gerais do bar')) return false
 
+    // Atalho: atualização ONLY de marca (logo_url/cor) — já persistida pelo chamador (upload/remoção/logo/cor)
+    // evita regravar configuracoes_bar e disparar toast duplicado de "configurações salvas".
+    const apenasMarca =
+      Object.keys(newSettings).length > 0 &&
+      Object.keys(newSettings).every((k) => k === 'logoUrl' || k === 'corPrimaria')
+
     try {
+      if (apenasMarca) {
+        // Marca (logo/cor) já foi persistida no estabelecimento pelo chamador; aqui só reflete no estado.
+        setSettings((prev) => (prev ? ({ ...prev, ...newSettings } as BarSettings) : prev))
+        return true
+      }
+
       const updated = await BarService.updateConfiguracoes(newSettings)
       setSettings(updated)
       toast({

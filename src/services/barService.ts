@@ -1311,8 +1311,9 @@ export const BarService = {
 
     if (!data) return DEFAULT_BAR_SETTINGS
 
-    // Cor de marca vem SEMPRE do estabelecimento logado (multi-tenant), não das configurações locais
+    // Cor de marca e logo vêm SEMPRE do estabelecimento logado (multi-tenant), não das configurações locais
     let corPrimaria: string | null = null
+    let logoUrl: string | null = null
     try {
       const { data: perfil } = await db
         .from('perfis_usuarios')
@@ -1322,18 +1323,20 @@ export const BarService = {
       if (perfil?.tenant_id) {
         const { data: est } = await db
           .from('estabelecimentos')
-          .select('cor_primaria')
+          .select('cor_primaria, logo_url')
           .eq('id', perfil.tenant_id)
           .maybeSingle()
         corPrimaria = est?.cor_primaria ?? null
+        logoUrl = est?.logo_url ?? null
       }
     } catch (e) {
-      console.warn('Não foi possível carregar cor_primaria do estabelecimento:', e)
+      console.warn('Não foi possível carregar marca do estabelecimento:', e)
     }
 
     return {
       id: data.id,
       corPrimaria: normalizeHexColor(corPrimaria) || DEFAULT_BAR_SETTINGS.corPrimaria,
+      logoUrl,
       taxaServicoPadrao: Number(data.taxa_servico_padrao ?? 10),
       taxaEntregaDelivery: Number(data.taxa_entrega_delivery ?? 7.5),
       razaoSocial: data.razao_social || DEFAULT_BAR_SETTINGS.razaoSocial,
@@ -1416,6 +1419,156 @@ export const BarService = {
       pixCidade: data.pix_cidade || DEFAULT_BAR_SETTINGS.pixCidade,
       corPrimaria: data.cor_primaria || DEFAULT_BAR_SETTINGS.corPrimaria,
       updatedAt: data.updated_at,
+    }
+  },
+
+  // --- LOGO DO ESTABELECIMENTO (TENANT) ---
+
+  /** Busca a URL pública da logo do estabelecimento logado (null = sem logo). */
+  async fetchLogoUrl(): Promise<string | null> {
+    try {
+      const { data: perfil } = await db
+        .from('perfis_usuarios')
+        .select('tenant_id')
+        .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+        .maybeSingle()
+      if (!perfil?.tenant_id) return null
+
+      const { data: est, error } = await db
+        .from('estabelecimentos')
+        .select('logo_url')
+        .eq('id', perfil.tenant_id)
+        .maybeSingle()
+      if (error) throw error
+      return est?.logo_url ?? null
+    } catch (e) {
+      console.error('Erro ao buscar logo_url do estabelecimento:', e)
+      return null
+    }
+  },
+
+  /**
+   * Grava (upload) a logo do estabelecimento logado no bucket público "logos",
+   * no caminho por tenant (logos/{tenant_id}/logo.{ext}).
+   * Substituição remove o arquivo antigo do bucket antes de gravar a URL nova.
+   * Aceita PNG/JPG/SVG até ~2MB.
+   */
+  async uploadLogo(file: File): Promise<{ logoUrl: string }> {
+    const mimePermitidos: Record<string, string> = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/svg+xml': 'svg',
+    }
+    const mime = (file.type || '').toLowerCase()
+    if (!mimePermitidos[mime]) {
+      throw new Error('Formato não aceito. Envie um arquivo PNG, JPG ou SVG.')
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error('Arquivo muito grande. O tamanho máximo é 2 MB.')
+    }
+
+    const { data: perfil } = await db
+      .from('perfis_usuarios')
+      .select('tenant_id')
+      .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+      .maybeSingle()
+    if (!perfil?.tenant_id) {
+      throw new Error('Estabelecimento do usuário não encontrado.')
+    }
+    const tenantId: string = perfil.tenant_id
+
+    // Logo anterior (para remover do bucket após gravar a nova URL)
+    const { data: estAnterior } = await db
+      .from('estabelecimentos')
+      .select('logo_url')
+      .eq('id', tenantId)
+      .maybeSingle()
+    const logoAnteriorUrl: string | null = estAnterior?.logo_url ?? null
+
+    const fileExt = mimePermitidos[mime]
+    const filePath = `${tenantId}/logo.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file, {
+      contentType: mime,
+      upsert: true,
+    })
+    if (uploadError) {
+      console.error('Erro no upload da logo para o Supabase Storage:', uploadError)
+      throw new Error(uploadError.message || 'Falha ao enviar a logo.')
+    }
+
+    const { data: pub } = supabase.storage.from('logos').getPublicUrl(filePath)
+    const publicUrl = pub.publicUrl
+
+    // Grava a URL nova na linha do PRÓPRIO tenant via RPC (checagem de perfil no banco)
+    const { error: rpcError } = await supabase.rpc('gerente_definir_logo_url', {
+      p_logo_url: publicUrl,
+    })
+    if (rpcError) {
+      console.error('Erro ao gravar logo_url do estabelecimento:', rpcError)
+      throw new Error(rpcError.message || 'Falha ao salvar a logo do estabelecimento.')
+    }
+
+    // Remove o arquivo antigo do bucket (substituição de extensão diferente ou logo anterior)
+    await BarService.removeLogoFile(logoAnteriorUrl, tenantId, filePath)
+
+    return { logoUrl: publicUrl }
+  },
+
+  /** Remove a logo do estabelecimento logado: limpa a coluna e apaga o arquivo do bucket. */
+  async removeLogo(): Promise<void> {
+    const { data: perfil } = await db
+      .from('perfis_usuarios')
+      .select('tenant_id')
+      .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+      .maybeSingle()
+    if (!perfil?.tenant_id) {
+      throw new Error('Estabelecimento do usuário não encontrado.')
+    }
+    const tenantId: string = perfil.tenant_id
+
+    const { data: est } = await db
+      .from('estabelecimentos')
+      .select('logo_url')
+      .eq('id', tenantId)
+      .maybeSingle()
+    const logoAnteriorUrl: string | null = est?.logo_url ?? null
+
+    // Limpa a coluna via RPC (p_logo_url nulo => null)
+    const { error: rpcError } = await supabase.rpc('gerente_definir_logo_url', { p_logo_url: null })
+    if (rpcError) {
+      console.error('Erro ao remover logo_url do estabelecimento:', rpcError)
+      throw new Error(rpcError.message || 'Falha ao remover a logo do estabelecimento.')
+    }
+
+    await BarService.removeLogoFile(logoAnteriorUrl, tenantId, null)
+  },
+
+  /** Apaga o objeto antigo do bucket "logos" (caminho por tenant), ignorando erros benignos. */
+  async removeLogoFile(
+    logoUrlAnterior: string | null,
+    tenantId: string,
+    novoPath: string | null,
+  ): Promise<void> {
+    try {
+      const pathsParaRemover = new Set<string>()
+
+      if (logoUrlAnterior && logoUrlAnterior.includes('/object/public/logos/')) {
+        pathsParaRemover.add(logoUrlAnterior.split('/object/public/logos/')[1])
+      }
+      // Se a nova logo tem extensão diferente, o caminho antigo muda — tenta remover variações
+      if (novoPath) {
+        for (const ext of ['png', 'jpg', 'svg']) {
+          const candidate = `${tenantId}/logo.${ext}`
+          if (candidate !== novoPath) pathsParaRemover.add(candidate)
+        }
+      }
+
+      const paths = Array.from(pathsParaRemover).filter(Boolean)
+      if (paths.length === 0) return
+      await supabase.storage.from('logos').remove(paths)
+    } catch (err) {
+      console.warn('Não foi possível remover a logo antiga do bucket:', err)
     }
   },
 }

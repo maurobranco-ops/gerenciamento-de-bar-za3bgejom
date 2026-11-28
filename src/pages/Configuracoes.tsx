@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Settings,
   Percent,
@@ -14,11 +14,16 @@ import {
   HelpCircle,
   QrCode,
   Palette,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { BarSettings } from '../types/bar'
 import { EstabelecimentoService } from '../services/estabelecimentoService'
+import { BarService } from '../services/barService'
 import { COR_PRIMARIA_PADRAO, isHexColorValid, normalizeHexColor } from '../lib/corMarca'
+import { useToast } from '../hooks/use-toast'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -27,6 +32,7 @@ import { Badge } from '../components/ui/badge'
 
 export default function Configuracoes() {
   const { settings, updateSettings, checkRoleAccess } = useBar()
+  const { toast } = useToast()
   const [formData, setFormData] = useState<BarSettings>(settings)
   const [isSaving, setIsSaving] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
@@ -37,6 +43,11 @@ export default function Configuracoes() {
   const [isSavingCor, setIsSavingCor] = useState(false)
   const [corSalvaSucesso, setCorSalvaSucesso] = useState(false)
   const [erroCor, setErroCor] = useState('')
+  // Logo do estabelecimento (tenant) — upload para o bucket público "logos", caminho por tenant
+  const [logoUrl, setLogoUrl] = useState<string | null>(settings?.logoUrl ?? null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [isRemovingLogo, setIsRemovingLogo] = useState(false)
+  const logoFileInputRef = useRef<HTMLInputElement>(null)
 
   // Reflete a cor vinda do banco quando as configurações carregam/trocam de estabelecimento
   useEffect(() => {
@@ -68,6 +79,11 @@ export default function Configuracoes() {
     }
   }
 
+  // Reflete a logo vinda do banco quando as configurações carregam/trocam de estabelecimento
+  useEffect(() => {
+    setLogoUrl(settings?.logoUrl ?? null)
+  }, [settings?.logoUrl])
+
   // Sincroniza estado local quando as configurações carregam do banco
   useEffect(() => {
     if (settings) {
@@ -94,6 +110,79 @@ export default function Configuracoes() {
 
   const handleResetToCurrent = () => {
     setFormData(settings)
+  }
+
+  // Upload da logo: aceita PNG/JPG/SVG até ~2MB; grava no bucket "logos" com caminho por tenant
+  const handleSelecionarLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // permite re-selecionar o mesmo arquivo depois
+    e.target.value = ''
+    if (!file) return
+
+    if (!checkRoleAccess(['Gerente'], 'alterar a logo do estabelecimento')) return
+
+    const mimesAceitos = ['image/png', 'image/jpeg', 'image/svg+xml']
+    if (!mimesAceitos.includes((file.type || '').toLowerCase())) {
+      toast({
+        variant: 'destructive',
+        title: 'Formato não aceito',
+        description: 'Envie um arquivo PNG, JPG ou SVG.',
+      })
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        variant: 'destructive',
+        title: 'Arquivo muito grande',
+        description: 'O tamanho máximo da logo é 2 MB.',
+      })
+      return
+    }
+
+    setIsUploadingLogo(true)
+    try {
+      const { logoUrl: novaUrl } = await BarService.uploadLogo(file)
+      setLogoUrl(novaUrl)
+      await updateSettings({ logoUrl: novaUrl })
+      toast({
+        title: 'Logo atualizada!',
+        description: 'A nova logo já aparece no menu lateral e no cabeçalho.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao enviar logo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar a logo',
+        description: err?.message || 'Não foi possível salvar a logo. Tente novamente.',
+      })
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
+  // Remove a logo: limpa logo_url e apaga o arquivo antigo do bucket
+  const handleRemoverLogo = async () => {
+    if (!checkRoleAccess(['Gerente'], 'remover a logo do estabelecimento')) return
+
+    setIsRemovingLogo(true)
+    try {
+      await BarService.removeLogo()
+      setLogoUrl(null)
+      await updateSettings({ logoUrl: null })
+      toast({
+        title: 'Logo removida',
+        description: 'O ícone padrão voltou a ser exibido no menu e no cabeçalho.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao remover logo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao remover a logo',
+        description: err?.message || 'Não foi possível remover a logo. Tente novamente.',
+      })
+    } finally {
+      setIsRemovingLogo(false)
+    }
   }
 
   return (
@@ -283,6 +372,74 @@ export default function Configuracoes() {
                   </>
                 )}
               </Button>
+            </div>
+          </div>
+
+          {/* Logo do estabelecimento (tenant) — upload salvo no Supabase Storage */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start text-xs border-t border-[#44403C] pt-4">
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="logo-arquivo"
+                className="text-xs text-stone-300 font-semibold flex items-center gap-1.5"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Logo do Estabelecimento (PNG, JPG ou SVG — máx. 2 MB)</span>
+              </Label>
+              <Input
+                id="logo-arquivo"
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml"
+                onChange={handleSelecionarLogo}
+                disabled={isUploadingLogo || isRemovingLogo}
+                className="bg-[#1C1917] border-[#44403C] text-stone-300 text-xs cursor-pointer
+                  file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
+                  file:bg-amber-500/15 file:text-amber-400 file:text-xs file:font-semibold"
+              />
+              <p className="text-[11px] text-stone-400">
+                Exibida no menu lateral e no cabeçalho no lugar do ícone. Ao trocar, o arquivo
+                antigo é removido do armazenamento. Salvo no bucket &quot;logos&quot; do Supabase.
+              </p>
+            </div>
+
+            <div className="flex flex-col items-start md:items-end gap-2">
+              <span className="text-[11px] text-stone-400">Prévia:</span>
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={`Logo do estabelecimento ${settings?.nomeFantasia ?? ''}`}
+                  className="h-12 w-12 rounded-lg object-contain bg-[#1C1917] border border-[#44403C] p-1"
+                />
+              ) : (
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-[#1C1917] border border-[#44403C] text-stone-500">
+                  <ImageIcon className="w-5 h-5" />
+                </span>
+              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={isUploadingLogo || isRemovingLogo || !logoUrl}
+                  onClick={handleRemoverLogo}
+                  className="text-red-400 hover:text-red-300 hover:bg-red-950/30 text-xs"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isRemovingLogo ? 'Removendo…' : 'Remover Logo'}
+                </Button>
+                {isUploadingLogo && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
+                    <Upload className="w-3.5 h-3.5 animate-pulse" />
+                    Enviando…
+                  </span>
+                )}
+                {!isUploadingLogo && logoUrl && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Logo ativa
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

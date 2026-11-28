@@ -168,6 +168,8 @@ export default function Layout() {
   // Cor de marca do estabelecimento logado — vem SEMPRE do banco (estabelecimentos.cor_primaria).
   const corPrimariaBruta = barContext.settings?.corPrimaria
   const corMarca = (role !== 'Admin' && normalizeHexColor(corPrimariaBruta)) || COR_PRIMARIA_PADRAO
+  // Logo do estabelecimento logado — vem do banco (estabelecimentos.logo_url). Null = ícone padrão.
+  const logoUrl = role !== 'Admin' ? barContext.settings?.logoUrl || null : null
 
   // Aplica a cor do tenant como variáveis CSS: realça sidebar, botões principais e detalhes.
   React.useEffect(() => {
@@ -276,12 +278,20 @@ export default function Layout() {
         <div className="flex items-center gap-3">
           {/* Marca principal logada = nome do estabelecimento (tenant ativo) */}
           <div className="flex items-center gap-2">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#1C1917] shadow-md shadow-amber-950/40"
-              style={{ backgroundColor: corMarca }}
-            >
-              <Beer className="w-5 h-5 fill-current" />
-            </div>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={`Logo do estabelecimento ${estabelecimentoNome}`}
+                className="w-9 h-9 rounded-xl object-contain bg-[#1C1917] border border-[#44403C] p-0.5"
+              />
+            ) : (
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#1C1917] shadow-md shadow-amber-950/40"
+                style={{ backgroundColor: corMarca }}
+              >
+                <Beer className="w-5 h-5 fill-current" />
+              </div>
+            )}
             {role !== 'Admin' ? (
               <span
                 className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100 truncate max-w-[220px]"
@@ -514,6 +524,13 @@ export default function Layout() {
           <div className="p-4 border-b border-[#44403C]/80">
             {!collapsed ? (
               <div className="p-3 rounded-xl bg-[#1C1917]/80 border border-[#44403C]">
+                {role !== 'Admin' && logoUrl && (
+                  <img
+                    src={logoUrl}
+                    alt={`Logo do estabelecimento ${estabelecimentoNome}`}
+                    className="w-12 h-12 rounded-xl object-contain bg-[#1C1917] border border-[#44403C] p-1 mb-2"
+                  />
+                )}
                 <div className="flex items-center justify-between">
                   <div className="text-[11px] uppercase tracking-wider font-semibold text-stone-400">
                     Acesso Autenticado
@@ -546,9 +563,17 @@ export default function Layout() {
                 className="flex justify-center"
                 title={`Perfil Supabase: ${role} (${profile?.nome_exibicao || user?.email})`}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-center text-amber-500 font-bold text-sm">
-                  {role[0]}
-                </div>
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={`Logo do estabelecimento ${estabelecimentoNome}`}
+                    className="w-10 h-10 rounded-xl object-contain bg-[#1C1917] border border-[#44403C] p-1"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-[#1C1917] border border-[#44403C] flex items-center justify-center text-amber-500 font-bold text-sm">
+                    {role[0]}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -689,7 +714,7 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Bares e Restaurantes v0.0.53 — Plataforma multi-tenant de gestão para bares e
+            Bares e Restaurantes v0.0.55 — Plataforma multi-tenant de gestão para bares e
             restaurantes
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">

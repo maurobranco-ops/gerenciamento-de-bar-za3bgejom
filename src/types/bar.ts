@@ -191,6 +191,8 @@ export interface BarSettings {
   id: string
   /** Cor de marca do estabelecimento (tenant), vem do banco — estabelecimentos.cor_primaria */
   corPrimaria: string
+  /** URL pública da logo do estabelecimento (tenant), vem do banco — estabelecimentos.logo_url (null = sem logo) */
+  logoUrl?: string | null
   taxaServicoPadrao: number // ex: 10
   taxaEntregaDelivery: number // ex: 7.50
   razaoSocial: string
