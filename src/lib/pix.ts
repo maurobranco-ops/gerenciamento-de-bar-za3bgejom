@@ -102,7 +102,14 @@ export function generatePixBRCode(params: PixPayloadParams): string {
     throw new Error('Chave Pix não informada')
   }
 
-  const merchantName = sanitizeEMVString(params.merchantName || 'Rachide Bar', 25) || 'RACHIDE BAR'
+  // Sem nome do estabelecimento não há recebedor válido: falha clara em vez de usar nome de outro tenant
+  if (!params.merchantName || !params.merchantName.trim()) {
+    throw new Error('Nome do recebedor Pix não configurado. Preencha em Configurações.')
+  }
+  const merchantName = sanitizeEMVString(params.merchantName, 25)
+  if (!merchantName) {
+    throw new Error('Nome do recebedor Pix inválido. Ajuste em Configurações.')
+  }
   const merchantCity = sanitizeEMVString(params.merchantCity || 'SAO PAULO', 15) || 'SAO PAULO'
 
   // Tag 00: Payload Format Indicator (fixo "01")
