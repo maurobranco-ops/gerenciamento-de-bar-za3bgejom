@@ -288,4 +288,35 @@ export const EstabelecimentoService = {
       throw error
     }
   },
+
+  /** EXCLUI definitivamente um usuário do estabelecimento: remove o perfil e a conta de login (RPC admin, is_admin no banco) */
+  async adminExcluirUsuario(estabelecimentoId: string, userId: string): Promise<void> {
+    const { data, error } = await db.rpc('admin_excluir_usuario_estabelecimento', {
+      p_estabelecimento_id: estabelecimentoId,
+      p_user_id: userId,
+    })
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error('Erro retornado pela RPC admin_excluir_usuario_estabelecimento:', data)
+      throw new Error(String((data as any).error))
+    }
+    if (error) {
+      console.error('Erro ao excluir usuário (admin):', error)
+      throw error
+    }
+  },
+
+  // ===== Cor de marca do PRÓPRIO estabelecimento (perfil Gerente, via RLS) =====
+
+  /** Gerente define a cor primária do seu estabelecimento (tenant vem do perfil logado no banco) */
+  async gerenteDefinirCorMarca(cor: string): Promise<void> {
+    const { data, error } = await db.rpc('gerente_definir_cor_marca', { p_cor: cor })
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error('Erro retornado pela RPC gerente_definir_cor_marca:', data)
+      throw new Error(String((data as any).error))
+    }
+    if (error) {
+      console.error('Erro ao definir cor de marca:', error)
+      throw error
+    }
+  },
 }

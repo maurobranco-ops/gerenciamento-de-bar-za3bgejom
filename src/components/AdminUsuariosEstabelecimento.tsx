@@ -15,10 +15,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { KeyRound, Loader2, Plus, Power, Users } from 'lucide-react'
+import { KeyRound, Loader2, Plus, Power, Trash2, Users } from 'lucide-react'
 
 const PERFIS: { value: PerfilGestao; label: string }[] = [
   { value: 'gerente', label: 'Gerente' },
@@ -55,6 +56,8 @@ export function AdminUsuariosEstabelecimento({ estabelecimento, onOpenChange, on
   const [resetSenha, setResetSenha] = useState('')
   const [resetSaving, setResetSaving] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [excluirAlvo, setExcluirAlvo] = useState<AdminUsuarioEstabelecimento | null>(null)
+  const [excluirSaving, setExcluirSaving] = useState(false)
 
   const carregar = async () => {
     if (!estabelecimentoId) return
@@ -178,6 +181,30 @@ export function AdminUsuariosEstabelecimento({ estabelecimento, onOpenChange, on
     }
   }
 
+  // Exclusão definitiva: remove o perfil e a conta de login (RPC admin_excluir_usuario_estabelecimento)
+  const confirmarExcluir = async () => {
+    if (!estabelecimentoId || !excluirAlvo) return
+    setExcluirSaving(true)
+    try {
+      await EstabelecimentoService.adminExcluirUsuario(estabelecimentoId, excluirAlvo.usuario_id)
+      toast({
+        title: 'Usuário excluído',
+        description: `${excluirAlvo.nome_exibicao} (${excluirAlvo.email}) perdeu o acesso definitivamente.`,
+      })
+      setExcluirAlvo(null)
+      await carregar()
+      onChanged()
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao excluir usuário',
+        description: err?.message || 'Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setExcluirSaving(false)
+    }
+  }
+
   return (
     <Dialog open={!!estabelecimento} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#292524] border-[#44403C] text-stone-100 max-w-2xl max-h-[85dvh] overflow-y-auto">
@@ -240,6 +267,17 @@ export function AdminUsuariosEstabelecimento({ estabelecimento, onOpenChange, on
                       className="text-stone-400 hover:text-amber-400 hover:bg-amber-500/10 h-8 w-8 p-0"
                     >
                       <KeyRound className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExcluirAlvo(u)}
+                      disabled={excluirSaving}
+                      aria-label={`Excluir ${u.nome_exibicao}`}
+                      title="Excluir usuário (remove o acesso definitivamente)"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 w-8 p-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -398,6 +436,55 @@ export function AdminUsuariosEstabelecimento({ estabelecimento, onOpenChange, on
             </div>
           </div>
         )}
+
+        {/* Confirmação de exclusão de usuário */}
+        <Dialog
+          open={!!excluirAlvo}
+          onOpenChange={(open) => {
+            if (!open) setExcluirAlvo(null)
+          }}
+        >
+          <DialogContent className="bg-[#292524] border-[#44403C] text-stone-100 max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-400" />
+                Excluir usuário
+              </DialogTitle>
+              <DialogDescription className="text-stone-400 text-sm">
+                Remover <span className="text-stone-100 font-semibold">
+                  {excluirAlvo?.email}
+                </span>{' '}
+                deste estabelecimento? O perfil e a conta de login serão excluídos definitivamente e
+                o usuário deixará de acessar o sistema.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setExcluirAlvo(null)}
+                disabled={excluirSaving}
+                className="bg-[#1C1917] border-[#44403C] text-stone-200 hover:bg-[#44403C]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmarExcluir}
+                disabled={excluirSaving}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold"
+              >
+                {excluirSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    Excluir definitivamente
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )

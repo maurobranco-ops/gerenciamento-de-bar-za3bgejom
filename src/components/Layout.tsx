@@ -29,6 +29,7 @@ import {
 import { useBar } from '../context/BarContext'
 import { useAuth } from '../hooks/use-auth'
 import { UserRole } from '../types/bar'
+import { COR_PRIMARIA_PADRAO, darkenHex, hexToHslString, normalizeHexColor } from '../lib/corMarca'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import {
@@ -164,6 +165,26 @@ export default function Layout() {
   const { user, profile, signOut } = useAuth()
   const { role, menuItems, comandas, checkRoleAccess, addItemToComanda, filaCozinha } = barContext
   const estabelecimentoNome = barContext.settings?.nomeFantasia || 'Estabelecimento'
+  // Cor de marca do estabelecimento logado — vem SEMPRE do banco (estabelecimentos.cor_primaria).
+  const corPrimariaBruta = barContext.settings?.corPrimaria
+  const corMarca = (role !== 'Admin' && normalizeHexColor(corPrimariaBruta)) || COR_PRIMARIA_PADRAO
+
+  // Aplica a cor do tenant como variáveis CSS: realça sidebar, botões principais e detalhes.
+  React.useEffect(() => {
+    if (role === 'Admin') return
+    const root = document.documentElement
+    const { h, s, l } = hexToHslString(corMarca)
+    root.style.setProperty('--primary', `${h} ${s}% ${l}%`)
+    root.style.setProperty('--ring', `${h} ${s}% ${l}%`)
+    root.style.setProperty('--cor-marca', corMarca)
+    root.style.setProperty('--cor-marca-hover', darkenHex(corMarca))
+    return () => {
+      root.style.removeProperty('--primary')
+      root.style.removeProperty('--ring')
+      root.style.removeProperty('--cor-marca')
+      root.style.removeProperty('--cor-marca-hover')
+    }
+  }, [corMarca, role])
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -255,19 +276,23 @@ export default function Layout() {
         <div className="flex items-center gap-3">
           {/* Marca principal logada = nome do estabelecimento (tenant ativo) */}
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-[#1C1917] shadow-md shadow-amber-950/40">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#1C1917] shadow-md shadow-amber-950/40"
+              style={{ backgroundColor: corMarca }}
+            >
               <Beer className="w-5 h-5 fill-current" />
             </div>
             {role !== 'Admin' ? (
               <span
                 className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100 truncate max-w-[220px]"
                 title={estabelecimentoNome}
+                style={{ color: role !== 'Admin' ? corMarca : undefined }}
               >
                 {estabelecimentoNome}
               </span>
             ) : (
               <span className="font-extrabold text-lg tracking-tight hidden sm:inline text-stone-100">
-                Bares e <span className="text-amber-500">Restaurantes</span>
+                Bares e <span style={{ color: corMarca }}>Restaurantes</span>
               </span>
             )}
           </div>
@@ -541,18 +566,30 @@ export default function Layout() {
                   to={item.path}
                   onClick={(e) => handleNavClick(e, item)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
-                    isActive
-                      ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-950/30'
-                      : hasAccess
-                        ? 'text-stone-300 hover:bg-[#44403C] hover:text-stone-100'
-                        : 'text-stone-500 opacity-50 cursor-not-allowed hover:bg-transparent'
+                    isActive ? 'cor-marca-ativo' : ''
+                  } ${
+                    hasAccess
+                      ? 'text-stone-300 hover:bg-[#44403C] hover:text-stone-100'
+                      : 'text-stone-500 opacity-50 cursor-not-allowed hover:bg-transparent'
                   }`}
+                  style={
+                    isActive && role !== 'Admin'
+                      ? { backgroundColor: corMarca, color: '#1C1917' }
+                      : undefined
+                  }
                   title={collapsed ? `${item.title}${!hasAccess ? ' (Restrito)' : ''}` : undefined}
                 >
                   <Icon
                     className={`w-5 h-5 flex-shrink-0 transition-colors ${
-                      isActive ? 'text-stone-950' : hasAccess ? 'text-amber-500' : 'text-stone-600'
+                      isActive ? 'text-stone-950' : hasAccess ? '' : 'text-stone-600'
                     }`}
+                    style={
+                      isActive
+                        ? undefined
+                        : hasAccess
+                          ? { color: role !== 'Admin' ? corMarca : undefined }
+                          : undefined
+                    }
                   />
                   {!collapsed && (
                     <div className="flex items-center justify-between flex-1 truncate">
@@ -657,7 +694,7 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between max-w-[1280px] mx-auto">
           <span>
-            Bares e Restaurantes v0.0.50 — Plataforma multi-tenant de gestão para bares e
+            Bares e Restaurantes v0.0.53 — Plataforma multi-tenant de gestão para bares e
             restaurantes
           </span>
           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">

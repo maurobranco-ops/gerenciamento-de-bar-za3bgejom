@@ -13,9 +13,12 @@ import {
   MapPin,
   HelpCircle,
   QrCode,
+  Palette,
 } from 'lucide-react'
 import { useBar } from '../context/BarContext'
 import { BarSettings } from '../types/bar'
+import { EstabelecimentoService } from '../services/estabelecimentoService'
+import { COR_PRIMARIA_PADRAO, isHexColorValid, normalizeHexColor } from '../lib/corMarca'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -27,6 +30,43 @@ export default function Configuracoes() {
   const [formData, setFormData] = useState<BarSettings>(settings)
   const [isSaving, setIsSaving] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
+  // Cor de marca editável pelo GERENTE (aplicada como destaque do estabelecimento logado)
+  const [corPrimaria, setCorPrimaria] = useState<string>(
+    normalizeHexColor(settings.corPrimaria) || COR_PRIMARIA_PADRAO,
+  )
+  const [isSavingCor, setIsSavingCor] = useState(false)
+  const [corSalvaSucesso, setCorSalvaSucesso] = useState(false)
+  const [erroCor, setErroCor] = useState('')
+
+  // Reflete a cor vinda do banco quando as configurações carregam/trocam de estabelecimento
+  useEffect(() => {
+    if (settings?.corPrimaria) {
+      setCorPrimaria(normalizeHexColor(settings.corPrimaria) || COR_PRIMARIA_PADRAO)
+    }
+  }, [settings?.corPrimaria])
+
+  const handleSalvarCor = async () => {
+    setErroCor('')
+    if (!isHexColorValid(corPrimaria)) {
+      setErroCor('Cor inválida: use o formato #RRGGBB (ex.: #f59e0b).')
+      return
+    }
+    if (!checkRoleAccess(['Gerente'], 'alterar a cor de marca do estabelecimento')) return
+
+    setIsSavingCor(true)
+    setCorSalvaSucesso(false)
+    try {
+      await EstabelecimentoService.gerenteDefinirCorMarca(corPrimaria.trim().toLowerCase())
+      await updateSettings({ corPrimaria: corPrimaria.trim().toLowerCase() })
+      setCorSalvaSucesso(true)
+      setTimeout(() => setCorSalvaSucesso(false), 3000)
+    } catch (err: any) {
+      console.error('Erro ao salvar cor de marca:', err)
+      setErroCor(err?.message || 'Não foi possível salvar a cor. Tente novamente.')
+    } finally {
+      setIsSavingCor(false)
+    }
+  }
 
   // Sincroniza estado local quando as configurações carregam do banco
   useEffect(() => {
@@ -158,7 +198,96 @@ export default function Configuracoes() {
           </div>
         </div>
 
-        {/* Bloco 2: Recebimento Pix (BR Code / Banco Central) */}
+        {/* Bloco 2: Cor de marca do estabelecimento (Gerente) */}
+        <div className="p-5 rounded-2xl bg-[#292524] border border-[#44403C] space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 border-b border-[#44403C] pb-3">
+            <Palette className="w-5 h-5 text-amber-500" />
+            <h3 className="font-bold text-base text-stone-100 flex items-center gap-2">
+              Cor de Marca do Estabelecimento
+              <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/40 text-xs font-bold">
+                Exclusivo Gerente
+              </Badge>
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start text-xs">
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="cor-primaria"
+                className="text-xs text-stone-300 font-semibold flex items-center gap-1.5"
+              >
+                <span>Cor Primária (destaque do menu, botões e detalhes)</span>
+                <span className="text-amber-400">*</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="cor-primaria-picker"
+                  type="color"
+                  aria-label="Seletor visual da cor primária"
+                  value={isHexColorValid(corPrimaria) ? corPrimaria : COR_PRIMARIA_PADRAO}
+                  onChange={(e) => setCorPrimaria(e.target.value)}
+                  className="h-9 w-12 rounded-lg border border-[#44403C] bg-[#1C1917] cursor-pointer p-0.5"
+                />
+                <Input
+                  id="cor-primaria"
+                  value={corPrimaria}
+                  onChange={(e) => setCorPrimaria(e.target.value)}
+                  placeholder="#f59e0b"
+                  maxLength={7}
+                  className="bg-[#1C1917] border-[#44403C] text-stone-100 text-xs font-mono"
+                  inputMode="text"
+                  autoComplete="off"
+                />
+              </div>
+              {erroCor ? (
+                <p className="text-[11px] text-red-400">{erroCor}</p>
+              ) : (
+                <p className="text-[11px] text-stone-400">
+                  Aplicada na hora ao menu lateral e aos botões principais. Cada estabelecimento tem
+                  a própria cor, salva no banco (coluna cor_primaria).
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col items-start md:items-end gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-stone-400">Prévia:</span>
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-stone-950 font-bold text-xs"
+                  style={{
+                    backgroundColor: isHexColorValid(corPrimaria)
+                      ? corPrimaria
+                      : COR_PRIMARIA_PADRAO,
+                  }}
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Botão principal
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSavingCor}
+                onClick={handleSalvarCor}
+                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs"
+              >
+                {corSalvaSucesso ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-stone-950" />
+                    Cor aplicada!
+                  </>
+                ) : (
+                  <>
+                    <Palette className="w-4 h-4" />
+                    Salvar Cor de Marca
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bloco 3: Recebimento Pix (BR Code / Banco Central) */}
         <div className="p-5 rounded-2xl bg-[#292524] border border-[#44403C] space-y-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-[#44403C] pb-3">
             <div className="flex items-center gap-2">

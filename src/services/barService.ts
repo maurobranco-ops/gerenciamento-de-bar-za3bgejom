@@ -17,9 +17,11 @@ import {
   DetalhesContaMesa,
   StatusContaCliente,
 } from '../types/bar'
+import { normalizeHexColor } from '../lib/corMarca'
 
 export const DEFAULT_BAR_SETTINGS: BarSettings = {
   id: 'principal',
+  corPrimaria: '#f59e0b',
   taxaServicoPadrao: 10,
   taxaEntregaDelivery: 7.5,
   razaoSocial: 'Rachide Bar & Petiscaria EIRELI',
@@ -1309,8 +1311,29 @@ export const BarService = {
 
     if (!data) return DEFAULT_BAR_SETTINGS
 
+    // Cor de marca vem SEMPRE do estabelecimento logado (multi-tenant), não das configurações locais
+    let corPrimaria: string | null = null
+    try {
+      const { data: perfil } = await db
+        .from('perfis_usuarios')
+        .select('tenant_id')
+        .eq('id', (await db.auth.getUser()).data.user?.id ?? '')
+        .maybeSingle()
+      if (perfil?.tenant_id) {
+        const { data: est } = await db
+          .from('estabelecimentos')
+          .select('cor_primaria')
+          .eq('id', perfil.tenant_id)
+          .maybeSingle()
+        corPrimaria = est?.cor_primaria ?? null
+      }
+    } catch (e) {
+      console.warn('Não foi possível carregar cor_primaria do estabelecimento:', e)
+    }
+
     return {
       id: data.id,
+      corPrimaria: normalizeHexColor(corPrimaria) || DEFAULT_BAR_SETTINGS.corPrimaria,
       taxaServicoPadrao: Number(data.taxa_servico_padrao ?? 10),
       taxaEntregaDelivery: Number(data.taxa_entrega_delivery ?? 7.5),
       razaoSocial: data.razao_social || DEFAULT_BAR_SETTINGS.razaoSocial,
