@@ -50,9 +50,36 @@ export async function resolveTenantAnonimo(
       const { data, error } = await (supabase.rpc as any)('tenant_do_pedido_anonimo', args)
       if (error) {
         console.warn('tenant_do_pedido_anonimo falhou para a mesa', mesa, ':', error)
-        return null
       }
-      const tenantId = (typeof data === 'string' ? data : null) || null
+      let tenantId = (typeof data === 'string' ? data : null) || null
+
+      // Fallback legado (placa antiga, sem ?t=): a RPC não resolve sem p_tenant
+      // (proteção multi-tenant). A política anon de mesas, porém, aceita ler a
+      // mesa pelo header x-mesa quando x-tenant está ausente — usamos essa
+      // leitura para descobrir o tenant, MAS só quando o número de mesa existe
+      // em um ÚNICO estabelecimento (ambíguo → null, mesma proteção da RPC).
+      if (!tenantId && !tenantParam) {
+        try {
+          const { data: mesasRows } = await (supabase as any)
+            .from('mesas')
+            .select('tenant_id')
+            .eq('numero', mesa)
+            .limit(2)
+          const tenants = Array.from(
+            new Set(
+              ((mesasRows as Array<{ tenant_id: string }> | null) || [])
+                .map((r) => r.tenant_id)
+                .filter(Boolean),
+            ),
+          )
+          if (tenants.length === 1) {
+            tenantId = tenants[0]
+          }
+        } catch (e) {
+          console.warn('Fallback de tenant pela mesa', mesa, 'falhou:', e)
+        }
+      }
+
       if (tenantId) {
         cachePorPar.set(chaveCache, tenantId)
         registrarTenantDaMesa(mesa, tenantId)

@@ -158,7 +158,8 @@ export default function PedidoOnline() {
     }
     setMesaAnonimaAtual(mesaParam)
     resolveTenantAnonimo(mesaParam, tenantParam).then((tenantId) => {
-      if (ativo && tenantId) {
+      if (!ativo) return
+      if (tenantId) {
         setTenantIdMesa(tenantId)
         // Header x-tenant: as políticas anon de configuracoes_bar/mesas casam
         // tenant + mesa (novo QR) — sem ele o SELECT anon pode voltar vazio.
@@ -167,6 +168,12 @@ export default function PedidoOnline() {
         // síncrono abaixo só conseguiu ler a chave legada)
         setAtendimentoAtivo(AtendimentoStorage.get(tenantId, mesaParam))
         setActiveComandaId(AtendimentoStorage.getComandaIdForMesa(tenantId, mesaParam))
+      } else {
+        // Não resolveu (mesa ambígua entre tenants ou RPC indisponível): sem
+        // tenant não há leitura anônima válida — encerra os loaders para não
+        // prender a tela em "Carregando" para sempre.
+        setLoadingMesas(false)
+        setLoading(false)
       }
     })
     return () => {
@@ -179,22 +186,34 @@ export default function PedidoOnline() {
 
   useEffect(() => {
     let ativo = true
-    // Anon no /pedido: envia o header x-mesa para a RLS resolver o tenant correto
-    BarService.fetchConfiguracoes({ mesaAnonima: mesaParam > 0 ? mesaParam : null })
-      .then((s) => {
-        if (ativo) {
-          setPixConfig({
-            pixChave: s.pixChave,
-            pixBeneficiarioNome: s.pixBeneficiarioNome,
-            pixCidade: s.pixCidade,
-          })
+    // CORREÇÃO DA CORRIDA: aguarda a resolução do tenant ANTES do fetch — sem o
+    // header x-tenant/x-mesa ativo a política anon devolve vazio.
+    const carregar = async () => {
+      if (mesaParam > 0) {
+        const tenantId = await resolveTenantAnonimo(mesaParam, tenantParam)
+        if (!ativo) return
+        if (tenantId) {
+          setTenantAnonimoAtual(tenantId)
         }
-      })
-      .catch((e) => console.warn('Não foi possível carregar dados Pix do estabelecimento:', e))
+      }
+      // Anon no /pedido: envia o header x-mesa para a RLS resolver o tenant correto
+      BarService.fetchConfiguracoes({ mesaAnonima: mesaParam > 0 ? mesaParam : null })
+        .then((s) => {
+          if (ativo) {
+            setPixConfig({
+              pixChave: s.pixChave,
+              pixBeneficiarioNome: s.pixBeneficiarioNome,
+              pixCidade: s.pixCidade,
+            })
+          }
+        })
+        .catch((e) => console.warn('Não foi possível carregar dados Pix do estabelecimento:', e))
+    }
+    carregar()
     return () => {
       ativo = false
     }
-  }, [mesaParam])
+  }, [mesaParam, tenantParam])
 
   // Payload Pix (BR Code) gerado só com dados do tenant; null quando não configurado
   let pixPayload: string | null = null
@@ -474,9 +493,21 @@ export default function PedidoOnline() {
 
   // Carrega cardápio público ativo do banco e taxa de entrega das configurações
   useEffect(() => {
-    if (mesaParam > 0 && !tenantIdMesa) return
     const fetchMenu = async () => {
       try {
+        // CORREÇÃO DA CORRIDA: aguarda a resolução do tenant ANTES de qualquer
+        // fetch — a política anônima de produtos exige o header x-tenant/x-mesa
+        // (registrado no wrapper de globalThis.fetch), que só existe depois que
+        // resolveTenantAnonimo conclui. Se o tenant resolver depois, a busca
+        // disparada aqui já sai com o header ativo.
+        if (mesaParam > 0) {
+          const tenantId = await resolveTenantAnonimo(mesaParam, tenantParam)
+          if (!ativo) return
+          if (tenantId) {
+            setTenantIdMesa(tenantId)
+            setTenantAnonimoAtual(tenantId)
+          }
+        }
         setLoading(true)
         const [prodRes, configRes] = await Promise.all([
           (supabase as any)
@@ -525,10 +556,10 @@ export default function PedidoOnline() {
     }
 
     fetchMenu()
-    // tenantIdMesa nas deps: os SELECTs anon (produtos/configuracoes) são filtrados
-    // pela RLS que resolve o tenant pelo header global x-mesa — recarrega ao resolver.
+    // tenantParam nas deps: a resolução do tenant é awaitada dentro do efeito,
+    // garantindo que nenhum SELECT saia antes do header x-tenant/x-mesa ativo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mesaParam, tenantIdMesa])
+  }, [mesaParam, tenantParam])
 
   // Buscar status ao vivo da fila da mesa/comanda
   const fetchOrderStatus = React.useCallback(
